@@ -11,7 +11,7 @@ the source audio alongside.**
 <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10+-212529?style=for-the-badge&logo=python&logoColor=white"></a>
 <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFmpeg-343A40?style=for-the-badge&logo=ffmpeg&logoColor=white"></a>
 <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFplay-Audio-495057?style=for-the-badge&logo=ffmpeg&logoColor=white"></a>
-<a href="https://github.com/Sujoy-004/rgb-ascii-video-renderer"><img src="https://img.shields.io/badge/ANSI%20True%20Color-7A838D?style=for-the-badge&logo=terminal&logoColor=white"></a>
+<a href="https://github.com/Sujoy-004/ASCII"><img src="https://img.shields.io/badge/ANSI%20True%20Color-7A838D?style=for-the-badge&logo=terminal&logoColor=white"></a>
 
 <sub>in: local video file — out: live colored ASCII in your terminal</sub>
 
@@ -202,7 +202,7 @@ are documented here and in the install section rather than in
 ## ◆ Project Structure
 
 ```
-rgb-ascii-video-renderer/
+ASCII/
 ├── src/
 │   ├── main.py        CLI entry point and orchestration
 │   ├── video.py       FFmpeg decoding
@@ -282,7 +282,7 @@ terminal characters, but is not a fork or copy of that codebase.
 <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10+-212529?style=for-the-badge&logo=python&logoColor=white"></a>
 <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFmpeg-343A40?style=for-the-badge&logo=ffmpeg&logoColor=white"></a>
 <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFplay-495057?style=for-the-badge&logo=ffmpeg&logoColor=white"></a>
-<a href="https://github.com/Sujoy-004/rgb-ascii-video-renderer"><img src="https://img.shields.io/badge/MIT%20License-7A838D?style=for-the-badge&logo=github&logoColor=white"></a>
+<a href="https://github.com/Sujoy-004/ASCII"><img src="https://img.shields.io/badge/MIT%20License-7A838D?style=for-the-badge&logo=github&logoColor=white"></a>
 
 </div>
 
