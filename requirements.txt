@@ -1,0 +1,9 @@
+# The application uses only the Python standard library — no third-party
+# Python packages are required to run it.
+#
+# External native dependencies (NOT installable via pip):
+#   - FFmpeg (required: decodes the video into frames)
+#   - FFplay (required for audio; the project also runs video-only without it)
+#
+# Install FFmpeg + FFplay yourself and ensure they are on your PATH, then open
+# a new terminal. See README.md for details.
