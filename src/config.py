@@ -59,6 +59,11 @@ class Config:
     enable_color: bool = True
     debug: bool = False
 
+    # Experimental higher-density color mode: render each cell as the upper-half
+    # block U+2580 (top pixel = foreground, bottom pixel = background) from a
+    # frame with double the vertical resolution. Opt-in only; OFF by default.
+    blocks: bool = False
+
     def __post_init__(self) -> None:
         if not self.chars:
             raise ValueError("chars gradient must not be empty")

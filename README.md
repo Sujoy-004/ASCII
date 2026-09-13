@@ -61,6 +61,13 @@ timing — is detected and chosen automatically. **No flags are needed.**
 
 - **Real-time RGB ASCII rendering** — video streams live into the terminal.
 - **ANSI 24-bit True Color** — each character keeps its source pixel's color.
+- **Region-faithful color sampling** — every character's color is the box/area
+  average of the entire source region it covers (FFmpeg `flags=area` at decode,
+  plus a dependency-free area-averaged resizer), so no single arbitrary pixel
+  determines a cell's color and smooth gradients render without banding.
+- **Experimental half-block color** (`RGB_ASCII_HALF_BLOCK=1`, opt-in) — renders
+  each cell as the `▀` upper-half block with two stacked colors, doubling
+  vertical color density without changing the visible grid size.
 - **Simultaneous audio playback** through FFplay.
 - **Automatic terminal-size adaptation** — the render grid fits your window and follows live resizes during playback.
 - **Aspect-ratio preservation** — corrects for non-square terminal characters.
@@ -171,7 +178,9 @@ are documented here and in the install section rather than in
 
 ## ◆ How It Works
 
-1. **FFmpeg** decodes the video into raw **RGB24** frames.
+1. **FFmpeg** decodes the video into raw **RGB24** frames, scaling each frame
+   to the terminal grid with **area averaging** (`scale=...:flags=area`) so a
+   decoded pixel is the mean of the entire source region it covers.
 2. **Python** renders each frame into an ANSI-colored ASCII string.
 3. **Luminance** selects the glyph — computed with Rec. 601 weights:
    `Y = 0.299R + 0.587G + 0.114B`.
@@ -182,7 +191,8 @@ are documented here and in the install section rather than in
 7. Optional **temporal smoothing** blends displayed frames.
 8. **FFplay** plays the source audio on a separate process and emits its current audio-master media position; video follows that clock when available.
 9. When the terminal size changes, the current RGB frame is resized with
-   dependency-free nearest-neighbor sampling and rendered at the new grid size.
+   dependency-free box/area averaging (matching the decode-path sampling) and
+   rendered at the new grid size.
 10. The **terminal** redraws each frame in place, without scrolling.
 
 ### Technical Notes

@@ -72,7 +72,12 @@ class FFmpegFrameReader:
             "-i", self.video_path,
             "-f", "rawvideo",
             "-pix_fmt", "rgb24",
-            "-vf", f"scale={self.width}:{self.height}",
+            # flags=area = box/area-average scaling: each decoded pixel is the
+            # mean of the entire source region it covers, so the color every
+            # terminal character receives reflects its whole region rather than
+            # one arbitrary pixel. Area averaging is also cheaper than the
+            # default bicubic for large downscales, keeping real-time playback.
+            "-vf", f"scale={self.width}:{self.height}:flags=area",
             "-",
         ]
         # read frames from stdout as binary; ignore ffmpeg logging on stderr.

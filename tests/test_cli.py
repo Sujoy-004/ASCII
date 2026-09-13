@@ -65,7 +65,7 @@ def test_absolute_external_path_preserved():
 def test_defaults_are_sane(monkeypatch):
     for var in ("RGB_ASCII_PRESET", "RGB_ASCII_CHARS", "RGB_ASCII_FPS",
                 "RGB_ASCII_SMOOTHING", "RGB_ASCII_NO_COLOR", "RGB_ASCII_NO_AUDIO",
-                "RGB_ASCII_DEBUG"):
+                "RGB_ASCII_DEBUG", "RGB_ASCII_HALF_BLOCK"):
         monkeypatch.delenv(var, raising=False)
     cfg = config_from_args(parse("vid.mp4"))
     assert cfg.fps == 30
@@ -73,6 +73,7 @@ def test_defaults_are_sane(monkeypatch):
     assert cfg.enable_color is True
     assert cfg.enable_audio is True
     assert cfg.debug is False
+    assert cfg.blocks is False
     assert cfg.chars == DEFAULT_CHARS
     assert cfg.preset is None
 
@@ -110,6 +111,12 @@ def test_env_smoothing(monkeypatch):
 def test_env_no_color(monkeypatch):
     monkeypatch.setenv("RGB_ASCII_NO_COLOR", "1")
     assert config_from_args(parse("vid.mp4")).enable_color is False
+
+
+def test_env_blocks_enables_half_block(monkeypatch):
+    assert config_from_args(parse("vid.mp4")).blocks is False
+    monkeypatch.setenv("RGB_ASCII_HALF_BLOCK", "1")
+    assert config_from_args(parse("vid.mp4")).blocks is True
 
 
 def test_env_no_audio(monkeypatch):

@@ -116,6 +116,8 @@ def config_from_args(args: argparse.Namespace) -> Config:
         config.enable_audio = False
     if _env_bool("RGB_ASCII_DEBUG"):
         config.debug = True
+    if _env_bool("RGB_ASCII_HALF_BLOCK"):
+        config.blocks = True
 
     return config
 
@@ -266,7 +268,12 @@ def run(
             timeline.sync_clock_source = "ffplay-audio"
     selector = FrameSelector(reader, clock)
     smoother = TemporalSmoother(config)
-    current_width, current_height = reader.width, reader.height
+    blocks = config.blocks
+    # Display rows: in half-block mode each cell shows two decoded rows, so the
+    # visible grid is half the decoded height; rendering re-scales the decode
+    # resolution to the terminal grid before pairing rows into ▀ cells.
+    render_rows = (reader.height // 2) if blocks else reader.height
+    current_width, current_height = reader.width, render_rows
     try:
         while True:
             frame, src_index = selector.next()
@@ -288,7 +295,20 @@ def run(
 
             frame = smoother.smooth(frame)  # M7 visual smoothing (pass-through when off)
             proc_start = clock.current_time()
-            if (current_width, current_height) == (reader.width, reader.height):
+            if blocks:
+                if (current_width, current_height) == (reader.width, render_rows):
+                    ascii_frame = renderer.render_frame_blocks(
+                        frame, reader.width, render_rows
+                    )
+                else:
+                    ascii_frame = renderer.render_resized_blocks_frame(
+                        frame,
+                        reader.width,
+                        reader.height,
+                        current_width,
+                        current_height,
+                    )
+            elif (current_width, current_height) == (reader.width, reader.height):
                 ascii_frame = renderer.render_frame(frame, reader.width, reader.height)
             else:
                 ascii_frame = renderer.render_resized_frame(
@@ -439,7 +459,10 @@ def main(argv: list[str] | None = None) -> int:
             audio_status=audio_status,
         )
 
-        reader = FFmpegFrameReader(args.video, width, height, fps=config.fps)
+        reader = FFmpegFrameReader(
+            args.video, width, height * 2 if config.blocks else height,
+            fps=config.fps,
+        )
         reader.media_timestamps = video_timestamps
         reader.open()
         timeline.video_launched_at = reader.launched_at

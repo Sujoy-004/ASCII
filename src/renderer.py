@@ -10,6 +10,8 @@ width * height * 3, laid out row-major with 3 bytes per pixel (R, G, B).
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from src.config import Config
 
 # ANSI escape prefix for true-color foreground.
@@ -127,6 +129,94 @@ def resize_rgb24(
     return bytes(out)
 
 
+@lru_cache(maxsize=None)
+def _box_ranges(src_size: int, dst_size: int) -> tuple[tuple[int, int], ...]:
+    """Partition ``src_size`` into ``dst_size`` sampling ranges.
+
+    Downscaling (src >= dst): destination index ``d`` covers source indices
+    ``[d * src // dst, (d + 1) * src // dst)``. The ranges tile the source
+    exactly (in order, no gaps or overlaps), so every destination sample owns a
+    well-defined area of the source -- the region a downscaled cell represents.
+
+    Upscaling (src < dst): a destination pixel never covers a whole source
+    pixel, so there is nothing to average; each destination sample takes the
+    single source pixel containing its sample point ``d * src // dst``
+    (nearest-equivalent copy).
+    """
+    if src_size >= dst_size:
+        return tuple(
+            (d * src_size // dst_size, (d + 1) * src_size // dst_size)
+            for d in range(dst_size)
+        )
+    return tuple(
+        (d * src_size // dst_size, d * src_size // dst_size + 1)
+        for d in range(dst_size)
+    )
+
+
+def resize_rgb24_area(
+    frame: bytes,
+    src_width: int,
+    src_height: int,
+    dst_width: int,
+    dst_height: int,
+) -> bytes:
+    """Resize an RGB24 frame with exact area (box) averaging.
+
+    Each destination pixel is the unweighted mean of the entire source region
+    it covers (partitioned by ``_box_ranges``), so the color of every cell
+    reflects its whole source area rather than one arbitrary pixel. This smooths
+    gradients and suppresses the per-cell color snapping that point sampling
+    produces on sub-cell detail.
+
+    When a destination dimension is not smaller than the source, the covered
+    region is a single source pixel and its value is copied (there is nothing
+    to average); that makes upscaling equivalent to nearest-neighbor. Identical
+    dimensions return the original frame object unchanged.
+    """
+    if src_width <= 0 or src_height <= 0 or dst_width <= 0 or dst_height <= 0:
+        raise ValueError("frame dimensions must be positive")
+    expected = src_width * src_height * 3
+    if len(frame) != expected:
+        raise ValueError(
+            f"RGB24 frame length {len(frame)} does not match "
+            f"{src_width}x{src_height} ({expected})"
+        )
+    if (src_width, src_height) == (dst_width, dst_height):
+        return frame
+
+    x_ranges = _box_ranges(src_width, dst_width)
+    y_ranges = _box_ranges(src_height, dst_height)
+    src = memoryview(frame)
+    src_row_bytes = src_width * 3
+    out = bytearray(dst_width * dst_height * 3)
+    pos = 0
+    for y0, y1 in y_ranges:
+        rows = y1 - y0
+        for x0, x1 in x_ranges:
+            cols = x1 - x0
+            if rows == 1 and cols == 1:
+                o = y0 * src_row_bytes + x0 * 3
+                out[pos] = src[o]
+                out[pos + 1] = src[o + 1]
+                out[pos + 2] = src[o + 2]
+            else:
+                n = rows * cols
+                r_sum = g_sum = b_sum = 0
+                row = y0 * src_row_bytes
+                for _ in range(rows):
+                    seg = src[row + x0 * 3:row + x1 * 3]
+                    r_sum += sum(seg[0::3])
+                    g_sum += sum(seg[1::3])
+                    b_sum += sum(seg[2::3])
+                    row += src_row_bytes
+                out[pos] = (2 * r_sum + n) // (2 * n)
+                out[pos + 1] = (2 * g_sum + n) // (2 * n)
+                out[pos + 2] = (2 * b_sum + n) // (2 * n)
+            pos += 3
+    return bytes(out)
+
+
 class RGBAsciiRenderer:
     """Converts RGB24 frames into ANSI-colored ASCII frame strings."""
 
@@ -175,6 +265,47 @@ class RGBAsciiRenderer:
             return self._render_colored(frame, width, height)
         return self._render_uncolored(frame, width, height)
 
+    def render_frame_blocks(self, frame: bytes, width: int, height: int) -> str:
+        """Render a ``width x (2*height)`` RGB24 frame as ``height`` half-block rows.
+
+        Each terminal cell is the upper-half block U+2580 with the TOP source
+        pixel as foreground and the BOTTOM single row below it as background,
+        doubling vertical color density without growing the grid. Luminance
+        mapping is intentionally bypassed here: the block glyph carries both
+        colors, so the two source pixels are preserved independently.
+        """
+        expected = width * height * 2 * 3
+        if len(frame) != expected:
+            raise ValueError(
+                f"RGB24 frame length {len(frame)} does not match "
+                f"{width}x{2 * height} ({expected}) for half-block rendering"
+            )
+        if not self.config.enable_color:
+            raise ValueError("half-block rendering requires color")
+        dec = _decimal_str
+        lines: list[str] = []
+        for y in range(height):
+            top_row = y * 2 * width * 3
+            bot_row = top_row + width * 3
+            row_bits: list[str] = []
+            append = row_bits.append
+            for x in range(width):
+                o = x * 3
+                tr = frame[top_row + o]
+                tg = frame[top_row + o + 1]
+                tb = frame[top_row + o + 2]
+                br = frame[bot_row + o]
+                bg = frame[bot_row + o + 1]
+                bb = frame[bot_row + o + 2]
+                append(
+                    "\x1b[38;2;" + dec[tr] + ";" + dec[tg] + ";" + dec[tb]
+                    + "m\x1b[48;2;" + dec[br] + ";" + dec[bg] + ";"
+                    + dec[bb] + "m\u2580"
+                )
+            append(_ANSI_RESET)
+            lines.append("".join(row_bits))
+        return "\n".join(lines)
+
     def render_resized_frame(
         self,
         frame: bytes,
@@ -183,8 +314,22 @@ class RGBAsciiRenderer:
         dst_width: int,
         dst_height: int,
     ) -> str:
-        """Resize an RGB24 frame and render it at the requested dimensions."""
-        resized = resize_rgb24(
+        """Resize an RGB24 frame with area averaging and render it."""
+        resized = resize_rgb24_area(
             frame, src_width, src_height, dst_width, dst_height
         )
         return self.render_frame(resized, dst_width, dst_height)
+
+    def render_resized_blocks_frame(
+        self,
+        frame: bytes,
+        src_width: int,
+        src_height: int,
+        dst_width: int,
+        dst_height: int,
+    ) -> str:
+        """Area-average to ``dst_width x (2*dst_height)`` and render half-block rows."""
+        resized = resize_rgb24_area(
+            frame, src_width, src_height, dst_width, dst_height * 2
+        )
+        return self.render_frame_blocks(resized, dst_width, dst_height)
