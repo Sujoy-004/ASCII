@@ -71,3 +71,16 @@ def test_no_distortion_fill_priority_is_aspect_then_size():
     assert cols == 60                       # width limited
     assert rows <= 60 - 2
     assert _aspect(cols, rows, term.config) == pytest.approx(16 / 9, rel=0.02)
+
+
+def test_refresh_size_updates_cached_dimensions():
+    term = _term(80, 24)
+    with mock.patch.object(TerminalRenderer, "detect_size", return_value=(120, 40)):
+        assert term.refresh_size() is True
+    assert (term.width, term.height) == (120, 40)
+
+def test_refresh_size_reports_no_change():
+    term = _term(80, 24)
+    with mock.patch.object(TerminalRenderer, "detect_size", return_value=(80, 24)):
+        assert term.refresh_size() is False
+    assert (term.width, term.height) == (80, 24)

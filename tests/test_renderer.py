@@ -1,5 +1,7 @@
 """Tests for the RGB -> ASCII renderer and pixel frame math."""
 
+import pytest
+
 from src.config import DEFAULT_CHARS, Config
 from src.renderer import (
     RGBAsciiRenderer,
@@ -110,3 +112,33 @@ def test_lut_render_matches_reference_color_and_nocol():
                 row_chars.append("\x1b[0m")
             lines.append("".join(row_chars))
         assert out == "\n".join(lines)
+
+
+def test_resize_rgb24_nearest_neighbor():
+    from src.renderer import resize_rgb24
+
+    # Four distinct source pixels:
+    # R G
+    # B W
+    frame = bytes([
+        255, 0, 0,    0, 255, 0,
+        0, 0, 255,    255, 255, 255,
+    ])
+    resized = resize_rgb24(frame, 2, 2, 4, 4)
+    assert len(resized) == 4 * 4 * 3
+    rows = [resized[y * 4 * 3:(y + 1) * 4 * 3] for y in range(4)]
+    assert rows[0] == rows[1] == bytes([255, 0, 0] * 2 + [0, 255, 0] * 2)
+    assert rows[2] == rows[3] == bytes([0, 0, 255] * 2 + [255, 255, 255] * 2)
+
+
+def test_resize_rgb24_same_dimensions_returns_original():
+    from src.renderer import resize_rgb24
+
+    frame = bytes([1, 2, 3] * 4)
+    assert resize_rgb24(frame, 2, 2, 2, 2) is frame
+
+def test_resize_rgb24_rejects_invalid_frame_length():
+    from src.renderer import resize_rgb24
+
+    with pytest.raises(ValueError):
+        resize_rgb24(bytes(3), 2, 2, 1, 1)

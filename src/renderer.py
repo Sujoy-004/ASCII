@@ -90,6 +90,43 @@ def frame_size(width: int, height: int) -> int:
     return width * height * 3
 
 
+def resize_rgb24(
+    frame: bytes,
+    src_width: int,
+    src_height: int,
+    dst_width: int,
+    dst_height: int,
+) -> bytes:
+    """Resize an RGB24 frame with nearest-neighbor sampling.
+
+    This is intentionally dependency-free so live terminal resizing can adapt
+    already-decoded frames without restarting FFmpeg or changing the playback
+    clock. When dimensions are unchanged, the original frame is returned.
+    """
+    if src_width <= 0 or src_height <= 0 or dst_width <= 0 or dst_height <= 0:
+        raise ValueError("frame dimensions must be positive")
+    expected = src_width * src_height * 3
+    if len(frame) != expected:
+        raise ValueError(
+            f"RGB24 frame length {len(frame)} does not match "
+            f"{src_width}x{src_height} ({expected})"
+        )
+    if (src_width, src_height) == (dst_width, dst_height):
+        return frame
+
+    src = memoryview(frame)
+    out = bytearray(dst_width * dst_height * 3)
+    x_offsets = [(x * src_width // dst_width) * 3 for x in range(dst_width)]
+    src_row_bytes = src_width * 3
+    out_pos = 0
+    for y in range(dst_height):
+        src_row = (y * src_height // dst_height) * src_row_bytes
+        for src_x in x_offsets:
+            out[out_pos:out_pos + 3] = src[src_row + src_x:src_row + src_x + 3]
+            out_pos += 3
+    return bytes(out)
+
+
 class RGBAsciiRenderer:
     """Converts RGB24 frames into ANSI-colored ASCII frame strings."""
 
@@ -137,3 +174,17 @@ class RGBAsciiRenderer:
         if self.config.enable_color:
             return self._render_colored(frame, width, height)
         return self._render_uncolored(frame, width, height)
+
+    def render_resized_frame(
+        self,
+        frame: bytes,
+        src_width: int,
+        src_height: int,
+        dst_width: int,
+        dst_height: int,
+    ) -> str:
+        """Resize an RGB24 frame and render it at the requested dimensions."""
+        resized = resize_rgb24(
+            frame, src_width, src_height, dst_width, dst_height
+        )
+        return self.render_frame(resized, dst_width, dst_height)

@@ -228,6 +228,7 @@ def run(
     audio: AudioPlayer | None = None,
     timeline: PlaybackTimeline | None = None,
     media_duration: float | None = None,
+    video_aspect: float | None = None,
 ) -> int:
     """Run the continuous playback loop, cleaning up on EOF and Ctrl+C.
 
@@ -251,6 +252,7 @@ def run(
     clock.start(timeline.playback_start if timeline is not None else None)
     selector = FrameSelector(reader, clock)
     smoother = TemporalSmoother(config)
+    current_width, current_height = reader.width, reader.height
     try:
         while True:
             frame, src_index = selector.next()
@@ -258,11 +260,30 @@ def run(
                 normal_eof = True
                 break
 
+            # Re-check the terminal on every presentation cycle. A resize only
+            # changes rendering dimensions; the decoded frame source and the
+            # absolute playback timeline continue uninterrupted.
+            refresh_size = getattr(terminal, "refresh_size", None)
+            if refresh_size is not None and refresh_size():
+                new_width, new_height = terminal.output_size(video_aspect)
+                if (new_width, new_height) != (current_width, current_height):
+                    current_width, current_height = new_width, new_height
+                    clear = getattr(terminal, "clear", None)
+                    if clear is not None:
+                        clear()
+
             frame = smoother.smooth(frame)  # M7 visual smoothing (pass-through when off)
             proc_start = clock.current_time()
-            ascii_frame = renderer.render_frame(
-                frame, reader.width, reader.height
-            )
+            if (current_width, current_height) == (reader.width, reader.height):
+                ascii_frame = renderer.render_frame(frame, reader.width, reader.height)
+            else:
+                ascii_frame = renderer.render_resized_frame(
+                    frame,
+                    reader.width,
+                    reader.height,
+                    current_width,
+                    current_height,
+                )
             terminal.write_frame(ascii_frame)
             clock.wait_until(clock.deadline(src_index), proc_start)
             if selector.stats.rendered == 1 and timeline is not None:
@@ -389,6 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         return run(
             reader, renderer, terminal, clock, config,
             audio, timeline, media_duration=media_duration,
+            video_aspect=video_aspect,
         )
     except (FFmpegNotFoundError, FileNotFoundError, FFplayNotFoundError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

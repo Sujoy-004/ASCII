@@ -35,6 +35,14 @@ class TerminalRenderer:
         size = shutil.get_terminal_size((80, 24))
         return size.columns, size.lines
 
+    def refresh_size(self) -> bool:
+        """Refresh the cached terminal size and return whether it changed."""
+        width, height = self.detect_size()
+        changed = (width, height) != (self.width, self.height)
+        if changed:
+            self.width, self.height = width, height
+        return changed
+
     def output_size(self, video_aspect: float | None = None) -> tuple[int, int]:
         """Derive ASCII render (columns, rows) fitting the terminal viewport.
 
@@ -90,6 +98,11 @@ class TerminalRenderer:
             return
         self.write(_SHOW_CURSOR + _ANSI_RESET + "\n")
         self._initialized = False
+
+    def clear(self) -> None:
+        """Clear the viewport before a resized frame is drawn."""
+        if self._initialized:
+            self.write(_CLEAR + _HOME)
 
     def write_frame(self, frame_string: str) -> None:
         """Redraw one frame: home the cursor (if initialized), then write.

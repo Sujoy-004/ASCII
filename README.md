@@ -62,7 +62,7 @@ timing — is detected and chosen automatically. **No flags are needed.**
 - **Real-time RGB ASCII rendering** — video streams live into the terminal.
 - **ANSI 24-bit True Color** — each character keeps its source pixel's color.
 - **Simultaneous audio playback** through FFplay.
-- **Automatic terminal-size adaptation** — the render grid fits your window.
+- **Automatic terminal-size adaptation** — the render grid fits your window and follows live resizes during playback.
 - **Aspect-ratio preservation** — corrects for non-square terminal characters.
 - **Absolute playback timing** — frames are scheduled against a shared deadlined clock.
 - **Real-time frame dropping** — stale frames are dropped to stay on track when the terminal can't keep up.
@@ -182,7 +182,9 @@ are documented here and in the install section rather than in
 6. **Stale frames are dropped** when playback falls behind the timeline.
 7. Optional **temporal smoothing** blends displayed frames.
 8. **FFplay** plays the source audio on a separate process.
-9. The **terminal** redraws each frame in place, without scrolling.
+9. When the terminal size changes, the current RGB frame is resized with
+   dependency-free nearest-neighbor sampling and rendered at the new grid size.
+10. The **terminal** redraws each frame in place, without scrolling.
 
 ### Technical Notes
 
@@ -244,8 +246,6 @@ Accurately stated, not hidden:
   the current FFplay integration.
 - **Terminal performance** depends heavily on the terminal emulator and its
   output throughput.
-- **Live terminal resizing** during playback is not supported — the scaling
-  pipeline is fixed to the terminal's size at startup. Resize, then re-run.
 - **Dropped frames** are an intentional real-time tradeoff under load.
 
 ---
@@ -253,7 +253,6 @@ Accurately stated, not hidden:
 ## ◆ Roadmap / Future Work
 
 - Better audio/video synchronization and sample-accurate timing.
-- Live terminal resize support during playback.
 - Configurable character gradients and resolution via CLI flags.
 - Frame-timestamp synchronization and automatic FPS detection.
 - ASCII image-renderer mode and webcam/stream input.

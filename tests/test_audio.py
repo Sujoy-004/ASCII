@@ -107,13 +107,19 @@ def test_is_running_true_while_alive(fake_popen):
 
 
 def test_missing_ffplay_raises(fake_popen):
-    player = AudioPlayer(ffplay=None)
-    with pytest.raises(FFplayNotFoundError) as excinfo:
-        player.start("video.mp4")
+    # Explicitly simulate a machine where FFplay is unavailable.
+    # The patch must cover AudioPlayer construction because the default
+    # FFplay executable is resolved during initialization.
+    with mock.patch("src.audio.shutil.which", return_value=None):
+        player = AudioPlayer(ffplay=None)
+
+        with pytest.raises(FFplayNotFoundError) as excinfo:
+            player.start("video.mp4")
+
     assert fake_popen["calls"] == []  # never tried to launch
     msg = str(excinfo.value)
     assert "required for audio" in msg
-    assert "RGB_ASCII_NO_AUDIO" in msg  # tells the user how to play video-only
+    assert "RGB_ASCII_NO_AUDIO" in msg
     assert "https://ffmpeg.org/download.html" in msg
 
 

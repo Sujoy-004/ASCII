@@ -5,6 +5,8 @@ loop, EOF handling, timing integration, and cleanup can be tested
 deterministically without wall-clock or subprocess dependence.
 """
 
+import pytest
+
 from src.config import Config
 from src.main import run
 from src.renderer import RGBAsciiRenderer
@@ -39,9 +41,27 @@ class FakeReader:
 
 
 class FakeTerminal:
-    def __init__(self):
+    def __init__(self, sizes=None, initial=(8, 8)):
         self.written = 0
         self.restored = False
+        self.width, self.height = initial
+        self._sizes = list(sizes or [initial])
+        self.clears = 0
+
+    def output_size(self, _video_aspect=None):
+        return self.width, self.height
+
+    def refresh_size(self):
+        if self._sizes:
+            size = self._sizes.pop(0)
+        else:
+            size = (self.width, self.height)
+        changed = size != (self.width, self.height)
+        self.width, self.height = size
+        return changed
+
+    def clear(self):
+        self.clears += 1
 
     def write_frame(self, _frame_string):
         self.written += 1
@@ -135,3 +155,48 @@ def test_cleanup_on_interrupt():
     assert result == 0
     assert reader.closed      # FFmpeg stopped
     assert terminal.restored  # cursor restored
+
+
+def test_resize_changes_render_dimensions_without_resetting_clock():
+    class RecordingRenderer:
+        def __init__(self):
+            self.calls = []
+
+        def render_frame(self, frame, width, height):
+            self.calls.append(("normal", width, height))
+            return "frame"
+
+        def render_resized_frame(self, frame, src_width, src_height, dst_width, dst_height):
+            self.calls.append(("resized", src_width, src_height, dst_width, dst_height))
+            return "frame"
+
+    reader = FakeReader([_black_frame() for _ in range(3)])
+    terminal = FakeTerminal(sizes=[(8, 8), (12, 10), (12, 10), (12, 10)])
+    renderer = RecordingRenderer()
+    config = Config(enable_color=False, fps=1000)
+    clock = _clock(1000)
+    clock_start = clock.current_time()
+
+    result = run(reader, renderer, terminal, clock, config, video_aspect=1.0)
+
+    assert result == 0
+    assert renderer.calls == [
+        ("normal", 8, 8),
+        ("resized", 8, 8, 12, 10),
+        ("resized", 8, 8, 12, 10),
+    ]
+    assert terminal.clears == 1
+    assert clock.start_time == pytest.approx(clock_start)
+    assert reader.closed
+
+
+def test_resize_uses_latest_size_for_aspect_preserving_output():
+    reader = FakeReader([_black_frame() for _ in range(2)])
+    terminal = FakeTerminal(sizes=[(8, 8), (16, 12)])
+    config = Config(enable_color=False, fps=1000)
+    renderer = RGBAsciiRenderer(config)
+
+    result = run(reader, renderer, terminal, _clock(1000), config, video_aspect=16 / 9)
+
+    assert result == 0
+    assert terminal.clears == 1
