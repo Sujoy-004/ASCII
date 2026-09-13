@@ -32,6 +32,7 @@ from src.sync import (
     audio_completion_timeout,
     probe_media_duration,
     probe_video_size,
+    probe_video_timestamps,
 )
 from src.terminal import TerminalRenderer
 from src.timing import FrameClock
@@ -217,6 +218,14 @@ def _report_sync(timeline: PlaybackTimeline | None) -> None:
         f"  Audio waited to exit: {'yes' if t.audio_waited_for_exit else 'no'}",
         file=sys.stderr,
     )
+    print(
+        f"  Sync clock:           {t.sync_clock_source}",
+        file=sys.stderr,
+    )
+    print(
+        f"  Max |A/V drift|:      {_fmt(t.max_av_drift)}",
+        file=sys.stderr,
+    )
 
 
 def run(
@@ -250,6 +259,11 @@ def run(
     interrupted = False
     normal_eof = False
     clock.start(timeline.playback_start if timeline is not None else None)
+    clock.set_media_timestamps(getattr(reader, "media_timestamps", None))
+    if audio is not None:
+        clock.set_media_clock(audio.media_position)
+        if timeline is not None:
+            timeline.sync_clock_source = "ffplay-audio"
     selector = FrameSelector(reader, clock)
     smoother = TemporalSmoother(config)
     current_width, current_height = reader.width, reader.height
@@ -286,8 +300,16 @@ def run(
                 )
             terminal.write_frame(ascii_frame)
             clock.wait_until(clock.deadline(src_index), proc_start)
-            if selector.stats.rendered == 1 and timeline is not None:
-                timeline.first_frame_at = clock.current_time()
+            if timeline is not None:
+                media_now = clock.media_time()
+                target_media = clock.target_media_time(src_index)
+                if media_now is not None:
+                    timeline.last_av_drift = media_now - target_media
+                    timeline.max_av_drift = max(
+                        timeline.max_av_drift, abs(timeline.last_av_drift)
+                    )
+                if selector.stats.rendered == 1:
+                    timeline.first_frame_at = clock.current_time()
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -350,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         media_duration = probe_media_duration(args.video)
         src_size = probe_video_size(args.video)
         video_aspect = (src_size[0] / src_size[1]) if src_size else None
+        video_timestamps = probe_video_timestamps(args.video)
 
         width, height = terminal.output_size(video_aspect)
         if config.debug:
@@ -363,9 +386,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Gradient:         {len(config.chars)} chars", file=sys.stderr)
             print(f"Color:            {'on' if config.enable_color else 'off'}", file=sys.stderr)
             print(f"Target FPS:       {config.fps}", file=sys.stderr)
+            print(
+                f"Frame timestamps:  {'source PTS' if video_timestamps else 'fixed FPS fallback'}",
+                file=sys.stderr,
+            )
 
-        # Single master playback reference shared by the video and audio
-        # timelines on the same monotonic clock.
+        # Single playback reference shared by the video and audio timelines
+        # on the same monotonic clock. If FFplay exposes its audio-master
+        # media position, the run loop can subsequently synchronize video to
+        # that clock; otherwise it falls back to the monotonic timeline.
         playback_start = clock.current_time()
 
         audio_status = AudioStatus.ABSENT
@@ -389,6 +418,15 @@ def main(argv: list[str] | None = None) -> int:
                     audio.start(args.video)
                     if config.debug:
                         print("FFplay audio started.", file=sys.stderr)
+                    if audio.wait_for_media_clock():
+                        media_position = audio.media_position()
+                        if media_position is not None:
+                            playback_start = clock.current_time() - media_position
+                            if config.debug:
+                                print(
+                                    f"FFplay audio clock ready at {media_position:.3f}s.",
+                                    file=sys.stderr,
+                                )
                 else:
                     print(
                         "No audio stream detected; skipping audio.",
@@ -402,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         reader = FFmpegFrameReader(args.video, width, height, fps=config.fps)
+        reader.media_timestamps = video_timestamps
         reader.open()
         timeline.video_launched_at = reader.launched_at
         if audio is not None:

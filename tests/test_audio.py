@@ -53,11 +53,15 @@ def test_start_command_construction(fake_popen):
     (cmd, kwargs), = fake_popen["calls"]
 
     assert cmd[0] == "C:\\tools\\ffplay.exe"
+    assert "-vn" in cmd
     assert "-nodisp" in cmd
     assert "-autoexit" in cmd
+    assert "-stats" in cmd
+    assert "-loglevel" in cmd
+    assert "warning" in cmd
     assert cmd[-1] == r"C:\media dir\my video.mp4"  # path is one argument
     assert kwargs["stdout"] == subprocess.DEVNULL
-    assert kwargs["stderr"] == subprocess.DEVNULL
+    assert kwargs["stderr"] == subprocess.PIPE
     assert player._process is fake_popen["proc"]
 
 
@@ -67,7 +71,7 @@ def test_start_passes_path_as_single_arg(fake_popen):
     (cmd, _), = fake_popen["calls"]
     # The path containing spaces must remain a single command element.
     assert cmd[-1] == r"C:\dir with spaces\clip video.mp4"
-    assert len(cmd) == 4
+    assert len(cmd) == 8
 
 
 def test_stop_terminates_and_waits(fake_popen):
@@ -86,6 +90,24 @@ def test_stop_idempotent(fake_popen):
     player.stop()
     player.stop()  # second call must be a no-op
     assert fake_popen["proc"].terminated == 1
+
+
+def test_ffplay_media_clock_parses_stats():
+    player = AudioPlayer(ffplay="ffplay", now=lambda: 12.0)
+    import io
+    player._read_stats(io.BytesIO(b"  7.250 M-A:  0.003 fd=  0\r"))
+    assert player.media_position() == pytest.approx(7.250)
+    assert player.sync_drift == pytest.approx(0.003)
+
+
+def test_ffplay_media_clock_extrapolates_while_running(fake_popen):
+    now = [10.0]
+    player = AudioPlayer(ffplay="ffplay", now=lambda: now[0])
+    import io
+    player._read_stats(io.BytesIO(b"  2.000 M-A:  0.000\r"))
+    player._process = fake_popen["proc"]
+    now[0] = 10.125
+    assert player.media_position() == pytest.approx(2.125)
 
 
 def test_stop_skips_already_exited(fake_popen):

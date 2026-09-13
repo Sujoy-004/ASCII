@@ -154,3 +154,61 @@ def test_subthreshold_lateness_is_on_time():
     clock.wait_until(clock.deadline(0), proc_start=100.0)
     assert clock.stats.late_frames == 0
     assert clock.stats.on_time_frames == 1
+
+
+
+def test_media_clock_controls_wait_target():
+    from src.timing import FrameClock
+
+    class FakeTime:
+        def __init__(self):
+            self.t = 0.0
+            self.sleeps = []
+
+        def now(self):
+            return self.t
+
+        def sleep(self, seconds):
+            self.sleeps.append(seconds)
+            self.t += seconds
+
+    ft = FakeTime()
+    media = [0.0]
+    clock = FrameClock(10, now=ft.now, sleep_fn=ft.sleep)
+    clock.start()
+    clock.set_media_clock(lambda: media[0])
+    clock.wait_until(clock.deadline(1))
+    assert ft.sleeps == [pytest.approx(0.1)]
+    assert clock.stats.frame_count == 1
+
+
+def test_media_clock_none_falls_back_to_absolute_deadline():
+    class FakeTime:
+        def __init__(self):
+            self.t = 0.0
+            self.sleeps = []
+
+        def now(self):
+            return self.t
+
+        def sleep(self, seconds):
+            self.sleeps.append(seconds)
+            self.t += seconds
+
+    ft = FakeTime()
+    clock = FrameClock(10, now=ft.now, sleep_fn=ft.sleep)
+    clock.start()
+    clock.set_media_clock(lambda: None)
+    clock.wait_until(clock.deadline(1))
+    assert ft.sleeps == [pytest.approx(0.1)]
+
+
+
+def test_media_timestamps_override_fixed_fps_targets():
+    clock = FrameClock(10, now=lambda: 0.0, sleep_fn=lambda _: None)
+    clock.start(0.0)
+    clock.set_media_timestamps((0.0, 0.04, 0.08, 0.14))
+    assert clock.target_media_time(0) == pytest.approx(0.0)
+    assert clock.target_media_time(1) == pytest.approx(0.04)
+    assert clock.target_media_time(3) == pytest.approx(0.14)
+    assert clock.target_media_time(4) == pytest.approx(0.4)

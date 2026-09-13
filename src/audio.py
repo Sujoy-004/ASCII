@@ -7,8 +7,10 @@ reliable detection of whether a video even contains an audio stream live here.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
+import threading
 import time
 
 from src.sync import AudioStatus
@@ -16,6 +18,11 @@ from src.sync import AudioStatus
 
 class FFplayNotFoundError(RuntimeError):
     """Raised when FFplay is requested but cannot be located."""
+
+
+_STATS_RE = re.compile(
+    rb"\s*(-?\d+(?:\.\d+)?)\s+(?:A-V|M-A|M-V|\s*):\s*(-?\d+(?:\.\d+)?)"
+)
 
 
 def _probe_ffprobe(video_path: str, ffprobe: str | None) -> AudioStatus:
@@ -81,6 +88,13 @@ class AudioPlayer:
         self._process: subprocess.Popen[bytes] | None = None
         self.launched_at: float | None = None
         self.exit_at: float | None = None
+        self._stats_thread: threading.Thread | None = None
+        self._stats_stop = threading.Event()
+        self._stats_ready = threading.Event()
+        self._stats_lock = threading.Lock()
+        self._media_position: float | None = None
+        self._media_position_at: float | None = None
+        self._sync_drift: float | None = None
         self._now = now if now is not None else time.perf_counter
         self._sleep = sleep_fn if sleep_fn is not None else time.sleep
 
@@ -102,14 +116,109 @@ class AudioPlayer:
                 "  To play video without audio, set the RGB_ASCII_NO_AUDIO=1 "
                 "environment variable before running."
             )
-        cmd = [self.ffplay, "-nodisp", "-autoexit", video_path]
+        cmd = [
+            self.ffplay,
+            "-vn",
+            "-nodisp",
+            "-autoexit",
+            "-stats",
+            "-loglevel", "warning",
+            video_path,
+        ]
         self.launched_at = self._now()
         self.exit_at = None
+        self._stats_stop.clear()
+        self._stats_ready.clear()
+        with self._stats_lock:
+            self._media_position = None
+            self._media_position_at = None
+            self._sync_drift = None
         self._process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
+        stderr = getattr(self._process, "stderr", None)
+        if stderr is not None:
+            self._stats_thread = threading.Thread(
+                target=self._read_stats,
+                args=(stderr,),
+                name="ffplay-stats",
+                daemon=True,
+            )
+            self._stats_thread.start()
+        else:
+            self._stats_thread = None
+
+    def _read_stats(self, stderr) -> None:
+        """Read FFplay status lines and retain its audio-master media clock.
+
+        FFplay emits carriage-return-delimited status containing its master
+        clock and drift. With audio-only playback the master clock is the
+        audio clock by default, so the first numeric field is the best
+        externally observable media-position estimate available through this
+        subprocess architecture.
+        """
+        pending = b""
+        read1 = getattr(stderr, "read1", stderr.read)
+        try:
+            while not self._stats_stop.is_set():
+                chunk = read1(4096)
+                if not chunk:
+                    break
+                pending += chunk
+                parts = re.split(rb"[\r\n]", pending)
+                pending = parts.pop()
+                for part in parts:
+                    match = _STATS_RE.search(part)
+                    if match is None:
+                        continue
+                    try:
+                        position = float(match.group(1))
+                        drift = float(match.group(2))
+                    except ValueError:
+                        continue
+                    observed_at = self._now()
+                    with self._stats_lock:
+                        self._media_position = position
+                        self._media_position_at = observed_at
+                        self._sync_drift = drift
+                    self._stats_ready.set()
+        except (OSError, ValueError):
+            return
+
+    def wait_for_media_clock(self, timeout: float = 0.25) -> bool:
+        """Wait briefly for the first FFplay media-position observation."""
+        return self._stats_ready.wait(max(0.0, timeout))
+
+    @property
+    def sync_drift(self) -> float | None:
+        """Latest FFplay-reported master/audio drift, when available."""
+        with self._stats_lock:
+            return self._sync_drift
+
+    def media_position(self) -> float | None:
+        """Estimate current audio media time from FFplay's status clock.
+
+        The reported position is anchored at the time this process observes
+        FFplay's status line, then extrapolated at 1x while FFplay remains
+        running. This is an audio-derived media clock, not an audio-device
+        sample timestamp.
+        """
+        with self._stats_lock:
+            position = self._media_position
+            observed_at = self._media_position_at
+        if position is None or observed_at is None:
+            return None
+        process = self._process
+        if process is not None:
+            try:
+                running = process.poll() is None
+            except OSError:
+                running = False
+            if running:
+                return max(position, position + max(0.0, self._now() - observed_at))
+        return position
 
     def is_running(self) -> bool:
         """Return True if the FFplay process is currently alive.
@@ -145,9 +254,20 @@ class AudioPlayer:
             return
         proc = self._process
         self._process = None
+        self._stats_stop.set()
         if proc.poll() is None:
             proc.terminate()
             try:
                 proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 proc.kill()
+        thread = self._stats_thread
+        self._stats_thread = None
+        if thread is not None:
+            thread.join(timeout=0.5)
+        stderr = getattr(proc, "stderr", None)
+        if stderr is not None:
+            try:
+                stderr.close()
+            except OSError:
+                pass

@@ -449,3 +449,28 @@ def test_slow_renderer_interrupt_cleans_up():
     assert proc.terminated == 1               # interrupt -> immediate audio stop
     assert timeline.audio_waited_for_exit is False
     assert terminal.restored
+
+
+
+def test_frame_selector_uses_audio_media_clock_for_staleness():
+    from src.framesel import FrameSelector
+    from src.timing import FrameClock
+
+    class Reader:
+        width = height = 1
+        def __init__(self):
+            self.frames = [b"a", b"b", b"c"]
+        def read_frame(self):
+            return self.frames.pop(0) if self.frames else None
+
+    media = [1.0]
+    clock = FrameClock(10)
+    clock.start(0.0)
+    clock.set_media_clock(lambda: media[0])
+    selector = FrameSelector(Reader(), clock)
+
+    frame, idx = selector.next()  # first frame is always presented
+    assert (frame, idx) == (b"a", 0)
+    frame, idx = selector.next()  # frame 1 target=0.1 is stale at audio t=1.0
+    assert frame is None
+    assert selector.stats.dropped == 2

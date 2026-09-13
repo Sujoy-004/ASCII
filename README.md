@@ -64,7 +64,7 @@ timing — is detected and chosen automatically. **No flags are needed.**
 - **Simultaneous audio playback** through FFplay.
 - **Automatic terminal-size adaptation** — the render grid fits your window and follows live resizes during playback.
 - **Aspect-ratio preservation** — corrects for non-square terminal characters.
-- **Absolute playback timing** — frames are scheduled against a shared deadlined clock.
+- **Audio-master playback timing** — when FFplay exposes its media clock, video deadlines follow the audio-derived playback position; a monotonic fallback remains available.
 - **Real-time frame dropping** — stale frames are dropped to stay on track when the terminal can't keep up.
 - **Optional temporal smoothing** blends displayed frames for a smoother look.
 - **Arbitrary local video paths** — relative, absolute, or with spaces; no copying needed.
@@ -177,11 +177,10 @@ are documented here and in the install section rather than in
    `Y = 0.299R + 0.587G + 0.114B`.
 4. **RGB** becomes the ANSI **True Color** foreground:
    `ESC[38;2;R;G;Bm`.
-5. A **FrameClock** schedules presentation against absolute deadlines toward
-   the target frame rate.
-6. **Stale frames are dropped** when playback falls behind the timeline.
+5. A **FrameClock** schedules presentation against source frame timestamps when FFprobe can provide them, with fixed-FPS deadlines as a fallback.
+6. **Stale frames are dropped** when playback falls behind the active media timeline.
 7. Optional **temporal smoothing** blends displayed frames.
-8. **FFplay** plays the source audio on a separate process.
+8. **FFplay** plays the source audio on a separate process and emits its current audio-master media position; video follows that clock when available.
 9. When the terminal size changes, the current RGB frame is resized with
    dependency-free nearest-neighbor sampling and rendered at the new grid size.
 10. The **terminal** redraws each frame in place, without scrolling.
@@ -192,12 +191,12 @@ are documented here and in the install section rather than in
 - **Luminance** — Rec. 601 weights favor green, matching human perception.
 - **ANSI True Color** — `\x1b[38;2;R;G;Bm` sets the foreground color; every
   pixel's color is carried into its character.
-- **Frame timing** — an absolute monotonic timeline shared by video and audio
-  paces presentation toward the configured FPS.
+- **Frame timing** — source frame PTS values drive media deadlines when available; fixed-FPS timing is the fallback. The wall-clock deadline remains derived from one monotonic playback start.
 - **Frame dropping** — an intentional real-time tradeoff under load, keeping
   playback near the current timeline instead of slowing down.
 - **Process separation** — FFmpeg (video), FFplay (audio), and Python are
-  separate processes coordinated by one shared playback clock.
+  separate processes coordinated by a video timeline that can follow FFplay's
+  audio-derived media clock.
 
 ---
 
@@ -242,8 +241,7 @@ can't keep up — a deliberate real-time tradeoff rather than a slowdown.
 
 Accurately stated, not hidden:
 
-- **Exact sample-accurate audio-device timestamps** are not available through
-  the current FFplay integration.
+- **True sample-accurate audio-device timestamps** are not exposed through the current FFplay subprocess integration. The synchronization clock uses FFplay's audio-master media position, which is materially better than process-launch timing but is not a device sample counter.
 - **Terminal performance** depends heavily on the terminal emulator and its
   output throughput.
 - **Dropped frames** are an intentional real-time tradeoff under load.
@@ -252,7 +250,7 @@ Accurately stated, not hidden:
 
 ## ◆ Roadmap / Future Work
 
-- Better audio/video synchronization and sample-accurate timing.
+- Controlled PCM/audio-device playback if true sample-accurate device-clock synchronization is required.
 - Configurable character gradients and resolution via CLI flags.
 - Frame-timestamp synchronization and automatic FPS detection.
 - ASCII image-renderer mode and webcam/stream input.

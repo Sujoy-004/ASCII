@@ -4,7 +4,7 @@ Keeps the three temporal notions the rest of the system must keep distinct:
 
 - wall/process time  -- raw monotonic seconds (time.perf_counter)
 - video presentation time -- driven by FrameClock absolute deadlines
-- audio playback time -- driven by the external FFplay process
+- audio playback time -- observed from FFplay's reported audio-master media clock
 
 This module owns the single shared ``playback_start`` reference, the per
 subsystem timing observations, audio-status tri-state, and the
@@ -46,6 +46,9 @@ class PlaybackTimeline:
     audio_status: AudioStatus = AudioStatus.ABSENT
     audio_launched_at: float | None = None
     audio_exit_at: float | None = None
+    sync_clock_source: str = "monotonic"
+    last_av_drift: float | None = None
+    max_av_drift: float = 0.0
     # --- completion ---
     audio_waited_for_exit: bool = False
 
@@ -127,6 +130,56 @@ def probe_media_duration(
         if not text:
             return None
         return float(text)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+def probe_video_timestamps(
+    video_path: str, ffprobe: str | None = None
+) -> tuple[float, ...] | None:
+    """Return normalized video frame timestamps in presentation order.
+
+    FFprobe's best-effort timestamps reflect the decoded video timeline and
+    preserve variable frame durations when the source has them. The result is
+    normalized so the first timestamp is media time zero. ``None`` means the
+    timestamps could not be obtained; callers then use their fixed-FPS fallback.
+    """
+    ffprobe = ffprobe or shutil.which("ffprobe")
+    if ffprobe is None:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                ffprobe,
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "frame=best_effort_timestamp_time",
+                "-of", "csv=p=0",
+                video_path,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        values: list[float] = []
+        for raw in result.stdout.decode(errors="replace").splitlines():
+            text = raw.strip()
+            if not text or text.upper() == "N/A":
+                continue
+            try:
+                timestamp = float(text.split(",", 1)[0])
+            except ValueError:
+                continue
+            if timestamp == float("inf") or timestamp == float("-inf"):
+                continue
+            values.append(timestamp)
+        if not values:
+            return None
+        first = values[0]
+        normalized = tuple(max(0.0, value - first) for value in values)
+        # A valid presentation timeline must be nondecreasing.
+        if any(b < a for a, b in zip(normalized, normalized[1:])):
+            return None
+        return normalized
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
 

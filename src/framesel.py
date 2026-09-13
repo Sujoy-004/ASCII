@@ -97,6 +97,9 @@ class FrameSelector:
         rendered; only a frame that is at least a full frame behind the
         timeline is dropped. No arbitrary millisecond constant is used.
         """
+        media_now = self.clock.media_time()
+        if media_now is not None:
+            return media_now >= self.clock.target_media_time(frame_index + 1)
         return now >= self.clock.deadline(frame_index + 1)
 
     def next(self):

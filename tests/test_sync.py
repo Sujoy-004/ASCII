@@ -21,6 +21,7 @@ from src.sync import (
     audio_completion_timeout,
     probe_media_duration,
     probe_video_size,
+    probe_video_timestamps,
 )
 from src.timing import FrameClock
 
@@ -445,3 +446,22 @@ def test_audio_completion_timeout_timeline_based():
     assert to2 == pytest.approx(FLUSH_GRACE + 4.5)
     # Unknown duration -> grace bound only.
     assert audio_completion_timeout(0.0, 5.0, None) == pytest.approx(FLUSH_GRACE)
+
+
+
+def test_probe_video_timestamps_normalizes_and_preserves_vfr():
+    result = mock.Mock()
+    result.stdout = b"10.000000\n10.040000\n10.080000\n10.140000\n"
+    with mock.patch("src.sync.subprocess.run", return_value=result), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4") == pytest.approx(
+            (0.0, 0.04, 0.08, 0.14)
+        )
+
+
+def test_probe_video_timestamps_failsafe_none():
+    result = mock.Mock()
+    result.stdout = b"N/A\n"
+    with mock.patch("src.sync.subprocess.run", return_value=result), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4") is None

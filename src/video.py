@@ -60,6 +60,7 @@ class FFmpegFrameReader:
         self.ffmpeg = ffmpeg or _find_ffmpeg()
         self._process: subprocess.Popen[bytes] | None = None
         self.launched_at: float | None = None
+        self.media_timestamps: tuple[float, ...] | None = None
 
     def open(self) -> None:
         """Start the FFmpeg process producing RGB24 frames on stdout."""

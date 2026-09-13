@@ -6,8 +6,8 @@ Frame N is scheduled to be *presented* at an absolute timeline deadline:
 
 rather than chaining each frame off the previous sleep. This makes the clock
 resistant to accumulated drift: a late frame does not shift later frames'
-target deadlines off the original timeline. This is the foundation for later
-audio/video synchronization (M5).
+target deadlines off the original timeline. When an external media clock is
+available, presentation can instead be paced against that clock on each frame.
 
 The clock uses a monotonic high-resolution time source (time.perf_counter by
 default) so wall-clock adjustments cannot affect playback timing.
@@ -18,6 +18,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from typing import Callable
+
+MediaClockFn = Callable[[], float | None]
 
 ClockFn = Callable[[], float]
 SleepFn = Callable[[float], None]
@@ -67,6 +69,8 @@ class FrameClock:
         self.stats = TimingStats()
         self._start_time: float | None = None
         self._last_presented: float | None = None
+        self._media_clock: MediaClockFn | None = None
+        self._media_timestamps: tuple[float, ...] | None = None
 
     @staticmethod
     def frame_budget(target_fps: int) -> float:
@@ -95,6 +99,32 @@ class FrameClock:
         self.stats = TimingStats()
         self._last_presented = None
         self._start_time = start_time if start_time is not None else self._now()
+        self._media_clock = None
+        self._media_timestamps = None
+
+    def set_media_clock(self, media_clock: MediaClockFn | None) -> None:
+        """Use an external media clock as the presentation-time reference."""
+        self._media_clock = media_clock
+
+    def media_time(self) -> float | None:
+        """Return the current external media time, when available."""
+        if self._media_clock is None:
+            return None
+        try:
+            return self._media_clock()
+        except (OSError, RuntimeError, ValueError):
+            return None
+
+    def set_media_timestamps(self, timestamps: tuple[float, ...] | None) -> None:
+        """Use source frame presentation timestamps when available."""
+        self._media_timestamps = timestamps
+
+    def target_media_time(self, frame_index: int) -> float:
+        """Return source media time, falling back to fixed-FPS timing."""
+        timestamps = self._media_timestamps
+        if timestamps is not None and 0 <= frame_index < len(timestamps):
+            return timestamps[frame_index]
+        return frame_index * self.frame_duration
 
     def deadline(self, frame_index: int) -> float:
         """Absolute presentation deadline for the given frame index.
@@ -118,7 +148,15 @@ class FrameClock:
         if proc_start is not None:
             self.stats.total_processing += now - proc_start
 
-        remaining = deadline - now
+        wait_target = deadline
+        media_now = self.media_time()
+        if media_now is not None:
+            media_target = deadline - self.start_time
+            remaining = media_target - media_now
+            wait_target = now + remaining
+        else:
+            remaining = deadline - now
+
         if remaining > 0:
             self._sleep(remaining)
 
@@ -127,7 +165,7 @@ class FrameClock:
             self.stats.total_pacing += presented - self._last_presented
         self._last_presented = presented
 
-        lateness = presented - deadline
+        lateness = presented - wait_target
         self.stats.frame_count += 1
         if lateness > self.late_threshold:
             self.stats.late_frames += 1
