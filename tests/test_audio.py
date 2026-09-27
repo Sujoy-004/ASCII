@@ -9,7 +9,12 @@ from unittest import mock
 
 import pytest
 
-from src.audio import FFplayNotFoundError, AudioPlayer, has_audio_stream
+from src.audio import (
+    FFplayNotFoundError,
+    FFplayPlaybackError,
+    AudioPlayer,
+    has_audio_stream,
+)
 
 
 class FakeProc:
@@ -92,9 +97,10 @@ def test_stop_idempotent(fake_popen):
     assert fake_popen["proc"].terminated == 1
 
 
-def test_ffplay_media_clock_parses_stats():
+def test_ffplay_media_clock_parses_stats(fake_popen):
     player = AudioPlayer(ffplay="ffplay", now=lambda: 12.0)
     import io
+    player._process = fake_popen["proc"]
     player._read_stats(io.BytesIO(b"  7.250 M-A:  0.003 fd=  0\r"))
     assert player.media_position() == pytest.approx(7.250)
     assert player.sync_drift == pytest.approx(0.003)
@@ -108,6 +114,42 @@ def test_ffplay_media_clock_extrapolates_while_running(fake_popen):
     player._process = fake_popen["proc"]
     now[0] = 10.125
     assert player.media_position() == pytest.approx(2.125)
+
+
+# A dead process must stop serving a frozen value as if it were a live clock:
+# callers fall back to their monotonic clock on None.
+def test_media_position_is_none_once_ffplay_exits(fake_popen):
+    now = [10.0]
+    player = AudioPlayer(ffplay="ffplay", now=lambda: now[0])
+    import io
+    player._read_stats(io.BytesIO(b"  2.000 M-A:  0.000\r"))
+    player._process = fake_popen["proc"]
+    now[0] = 10.125
+    assert player.media_position() == pytest.approx(2.125)
+    fake_popen["proc"]._exited = True
+    assert player.media_position() is None
+
+
+def test_is_running_records_exit_status(fake_popen):
+    player = AudioPlayer(ffplay="ffplay")
+    player.start("video.mp4")
+    assert player.is_running() is True
+    assert player.exit_code is None
+    fake_popen["proc"]._exited = True
+    assert player.is_running() is False
+    assert player.exit_code == 0
+    assert player.exit_at is not None
+
+
+# A failure to launch must surface as an explicit error, not an OSError
+# traceback, and must leave no half-started player behind.
+def test_start_wraps_launch_failure():
+    player = AudioPlayer(ffplay="C:\\tools\\ffplay.exe")
+    error = OSError(193, "%1 is not a valid Win32 application")
+    with mock.patch("src.audio.subprocess.Popen", side_effect=error), \
+         pytest.raises(FFplayPlaybackError, match="could not be started"):
+        player.start("video.mp4")
+    assert player._process is None
 
 
 def test_stop_skips_already_exited(fake_popen):
@@ -161,6 +203,7 @@ def test_kill_after_timeout(fake_popen):
 
 def test_has_audio_stream_true_when_output_present():
     result = mock.Mock()
+    result.returncode = 0
     result.stdout = b"audio\n"
     with mock.patch("src.audio.subprocess.run", return_value=result) as m:
         assert has_audio_stream("video.mp4", ffprobe="ffprobe") is True
@@ -172,6 +215,7 @@ def test_has_audio_stream_true_when_output_present():
 
 def test_has_audio_stream_false_when_no_output():
     result = mock.Mock()
+    result.returncode = 0
     result.stdout = b""
     with mock.patch("src.audio.subprocess.run", return_value=result):
         assert has_audio_stream("video.mp4", ffprobe="ffprobe") is False
@@ -180,6 +224,15 @@ def test_has_audio_stream_false_when_no_output():
 def test_has_audio_stream_failsafe_when_ffprobe_missing():
     with mock.patch("src.audio.shutil.which", return_value=None):
         assert has_audio_stream("video.mp4") is True  # attempt playback
+
+
+def test_has_audio_stream_failsafe_when_probe_fails():
+    """A failed ffprobe run must not masquerade as a confirmed absence."""
+    result = mock.Mock()
+    result.returncode = 1
+    result.stdout = b""
+    with mock.patch("src.audio.subprocess.run", return_value=result):
+        assert has_audio_stream("video.mp4", ffprobe="ffprobe") is True
 
 
 def test_run_stops_audio_on_cleanup():

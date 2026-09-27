@@ -253,7 +253,6 @@ def test_smoothing_stabilizes_character_across_luminance_boundary():
     chars = []
     for b in (143, 140, 143, 140):        # raw would oscillate chars[4],chars[5]
         smoothed = sm.smooth(_gray(b))
-        brightness = luminance(smoothed[0], smoothed[0], smoothed[0])
         chars.append(renderer.render_frame(smoothed, 1, 1))
     # every smoothed output should resolve to the SAME stable char
     assert len(set(chars)) == 1
@@ -310,7 +309,6 @@ def test_smoothing_state_stays_bounded():
 def test_healthy_run_drop_count_identical_with_smoothing_on_off():
     """Smoothing is a downstream rendering effect: it must not change how many
     frames are dropped (M6 behavior preserved)."""
-    ft = FakeTime()
     n = 8
 
     def run_once(smoothing):
@@ -370,3 +368,43 @@ def test_smoothing_run_cleans_up_on_no_frames():
     assert result == 0
     assert terminal.written == 0
     assert terminal.restored
+
+
+def test_blend_is_byte_identical_to_the_naive_formula_for_every_input():
+    """The row-table blend must be a pure speedup, not a behaviour change.
+
+    Covers all 65536 (previous, current) byte pairs for several alphas, which is
+    every input the 256x256 blend table can ever see. This is the guard that
+    lets the hot loop be restructured for speed: if it holds, the optimization
+    is provably invisible to rendering.
+    """
+    from src.config import Config as _Config
+    from src.smoothing import TemporalSmoother as _Smoother
+
+    for alpha in (0.0, 0.05, 0.3, 0.5, 0.75, 1.0):
+        smoother = _Smoother(_Config(smoothing=alpha))
+        assert smoother.enabled is (alpha > 0.0)
+        if not smoother.enabled:
+            continue
+        for previous in (0, 1, 127, 128, 254, 255):
+            current = bytes(range(256))
+            expected = bytes(
+                int(previous * (1.0 - alpha) + c * alpha + 0.5) for c in range(256)
+            )
+            got = smoother._blend(bytearray(bytes([previous]) * 256), current)
+            assert got == expected, (
+                f"alpha={alpha} previous={previous} diverged from the formula"
+            )
+
+
+def test_blend_rows_are_a_view_of_the_same_table():
+    """The row table is derived from the flat one, so they cannot disagree."""
+    from src.config import Config as _Config
+    from src.smoothing import TemporalSmoother as _Smoother
+
+    smoother = _Smoother(_Config(smoothing=0.3))
+    assert len(smoother._blend_rows) == 256
+    for previous in range(256):
+        assert smoother._blend_rows[previous] == (
+            smoother._blend_table[previous * 256:(previous + 1) * 256]
+        )

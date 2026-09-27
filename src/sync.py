@@ -14,6 +14,7 @@ video.
 
 from __future__ import annotations
 
+import math
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -46,7 +47,6 @@ class PlaybackTimeline:
     audio_status: AudioStatus = AudioStatus.ABSENT
     audio_launched_at: float | None = None
     audio_exit_at: float | None = None
-    sync_clock_source: str = "monotonic"
     last_av_drift: float | None = None
     max_av_drift: float = 0.0
     # --- completion ---
@@ -126,6 +126,12 @@ def probe_media_duration(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        # A non-zero status means the probe failed even if it managed to print
+        # something parsable (a truncated or partially readable container, for
+        # example). Trusting that output would hand the caller a duration that
+        # does not describe the file.
+        if result.returncode != 0:
+            return None
         text = result.stdout.decode(errors="replace").strip()
         if not text:
             return None
@@ -134,15 +140,48 @@ def probe_media_duration(
         return None
 
 
+def _trusted_timeline(
+    values: list[float], duration: float | None
+) -> tuple[float, ...] | None:
+    """Normalize raw presentation timestamps, or reject the whole timeline.
+
+    FFprobe emits one row per decoded frame, so the list indexes frames
+    positionally. Rejecting the entire timeline (rather than dropping a bad
+    entry) is what keeps the list aligned with frame indexes: a skipped entry
+    would shift every later frame onto a neighbour's timestamp.
+
+    ``None`` means the caller must use fixed-FPS timing for the whole video.
+    """
+    if any(not math.isfinite(value) for value in values):
+        return None
+    # Ordering is checked on the raw values, before normalization, so an
+    # out-of-order timestamp cannot hide behind the subtraction.
+    if any(after < before for before, after in zip(values, values[1:])):
+        return None
+    normalized = tuple(value - values[0] for value in values)
+    if duration is not None and duration > 0:
+        # The last frame belongs near the end of the media. A timeline that
+        # ends far earlier describes only part of the file, so trusting it
+        # would pace the whole video against a fraction of its real length.
+        slack = max(1.0, duration * 0.1)
+        if normalized[-1] + slack < duration * 0.9:
+            return None
+    return normalized
+
+
 def probe_video_timestamps(
-    video_path: str, ffprobe: str | None = None
+    video_path: str,
+    ffprobe: str | None = None,
+    duration: float | None = None,
 ) -> tuple[float, ...] | None:
     """Return normalized video frame timestamps in presentation order.
 
     FFprobe's best-effort timestamps reflect the decoded video timeline and
     preserve variable frame durations when the source has them. The result is
     normalized so the first timestamp is media time zero. ``None`` means the
-    timestamps could not be obtained; callers then use their fixed-FPS fallback.
+    timestamps could not be trusted as a frame-indexed timeline; callers then
+    use their fixed-FPS fallback. ``duration`` is the media duration, used to
+    reject a timeline that plainly does not describe the same file.
     """
     ffprobe = ffprobe or shutil.which("ffprobe")
     if ffprobe is None:
@@ -160,26 +199,22 @@ def probe_video_timestamps(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        if result.returncode != 0:
+            return None
         values: list[float] = []
         for raw in result.stdout.decode(errors="replace").splitlines():
-            text = raw.strip()
+            text = raw.split(",", 1)[0].strip()
             if not text or text.upper() == "N/A":
-                continue
+                # A row without a value means the remaining timestamps no
+                # longer line up with the frame indexes they would be read by.
+                return None
             try:
-                timestamp = float(text.split(",", 1)[0])
+                values.append(float(text))
             except ValueError:
-                continue
-            if timestamp == float("inf") or timestamp == float("-inf"):
-                continue
-            values.append(timestamp)
+                return None
         if not values:
             return None
-        first = values[0]
-        normalized = tuple(max(0.0, value - first) for value in values)
-        # A valid presentation timeline must be nondecreasing.
-        if any(b < a for a, b in zip(normalized, normalized[1:])):
-            return None
-        return normalized
+        return _trusted_timeline(values, duration)
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
 
@@ -207,6 +242,11 @@ def probe_video_size(video_path: str, ffprobe: str | None = None) -> tuple[int, 
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        # As in probe_media_duration: a failed probe's output is not evidence,
+        # even when it happens to be parsable. A wrong source size would feed
+        # a wrong aspect ratio into the terminal grid calculation.
+        if result.returncode != 0:
+            return None
         text = result.stdout.decode(errors="replace").strip()
         if not text or "x" not in text:
             return None

@@ -6,7 +6,7 @@ magic values. A single dataclass instance is passed through the components.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 # Default luminance-to-character gradient: low brightness first, high last.
@@ -63,6 +63,11 @@ class Config:
     # block U+2580 (top pixel = foreground, bottom pixel = background) from a
     # frame with double the vertical resolution. Opt-in only; OFF by default.
     blocks: bool = False
+
+    # Let the renderer shed load when a frame's measured work exceeds its
+    # budget for a sustained window: first temporal smoothing, then color.
+    # Set False for byte-reproducible output regardless of machine speed.
+    adaptive_quality: bool = True
 
     def __post_init__(self) -> None:
         if not self.chars:

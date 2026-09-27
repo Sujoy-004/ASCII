@@ -12,14 +12,17 @@ rendering, drops frames that are already stale, converging back toward the
 current media time instead of presenting stale content indefinitely.
 
 Design rules honored here:
- - Absolute deadlines remain authoritative (deadline(n) = start + n * duration);
-   dropping frame n does NOT shift frame n+1.
+ - Absolute deadlines remain authoritative (deadline(n) = start +
+   target_media_time(n)); dropping frame n does NOT shift frame n+1.
  - No unbounded queue: every decoded frame is either rendered immediately or
    discarded immediately; nothing is buffered for later.
- - No arbitrary "drop every Nth" and no "drop if processing > X ms" rule; a
-   frame is stale purely relative to the timeline.
- - The first frame is always rendered so process startup does not trigger an
-   aggressive, content-empty catch-up burst (startup policy).
+  - No arbitrary "drop every Nth" and no "drop if processing > X ms" rule; a
+    frame is stale purely relative to the timeline.
+  - The first frame defines the playback origin (the caller reads it before the
+    timeline starts), so it is the correct frame for playback media time rather
+    than merely the first one to arrive after an arbitrary wall-clock start. It
+    is still rendered unconditionally, which now agrees with the normal rule
+    instead of masking an already-stale clock.
 """
 
 from __future__ import annotations
@@ -81,12 +84,16 @@ class FrameSelector:
     frames that precede it.
     """
 
-    def __init__(self, reader, clock) -> None:
+    def __init__(self, reader, clock, first_frame=None) -> None:
         self.reader = reader
         self.clock = clock
         self.stats = DropStats()
         self._first = True
         self._source_index = 0
+        # A frame already read while the pipeline was warming up, before the
+        # playback origin existed. It is source index 0 and must be the first
+        # thing presented.
+        self._primed = first_frame
 
     def stale(self, frame_index: int, now: float) -> bool:
         """True if a decoded frame is already obsolete.
@@ -102,6 +109,17 @@ class FrameSelector:
             return media_now >= self.clock.target_media_time(frame_index + 1)
         return now >= self.clock.deadline(frame_index + 1)
 
+    def prime(self) -> None:
+        """Read the first frame now, before the caller starts the timeline.
+
+        Kept separate from :meth:`next` because the frame must be in hand
+        *before* the playback origin exists, otherwise decoder startup latency
+        is billed to the clock as playback lateness. A caller that already read
+        the frame passes it to ``__init__`` instead, making this a no-op.
+        """
+        if self._primed is None:
+            self._primed = self.reader.read_frame()
+
     def next(self):
         """Return the next frame to render, dropping stale frames first.
 
@@ -112,7 +130,10 @@ class FrameSelector:
         deadlines; they are independent of how many were dropped/rendered.
         """
         while True:
-            frame = self.reader.read_frame()
+            if self._primed is not None:
+                frame, self._primed = self._primed, None
+            else:
+                frame = self.reader.read_frame()
             if frame is None:
                 return None, self._source_index
             idx = self._source_index
@@ -120,8 +141,9 @@ class FrameSelector:
             self.stats.decoded += 1
 
             if self._first:
-                # Startup policy (M6): always present the very first frame so
-                # process-launch skew does not trigger an empty catch-up burst.
+                # The origin-defining frame: the caller established the playback
+                # timeline at the instant this frame became available, so it is
+                # the correct frame for media time 0 and is never late.
                 self._first = False
                 self.stats.rendered += 1
                 self.stats.end_burst()

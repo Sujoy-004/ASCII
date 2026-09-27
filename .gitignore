@@ -2,12 +2,25 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .venv/
 venv/
 *.egg-info/
 dist/
 build/
 .planning/
+
+# Benchmark output (see: python bench.py --json baseline.json)
+bench_*.json
+
+# Editor / OS junk. Narrow on purpose: each entry is a well-known tool's
+# metadata, so none of them can hide project source, docs or assets.
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
 
 # Local / personal tooling
 AGENTS.md

@@ -27,11 +27,6 @@ _char_table_cache: dict[str, str] = {}
 # color sequences without per-pixel str.format (M8 hot path).
 _decimal_str = tuple(str(i) for i in range(256))
 
-# Precomputed luminance -> character table for the default gradient, so the
-# always-on DEFAULT_CHARS path avoids even a dict lookup (M8 hot path). Built
-# on first use.
-_DEFAULT_CHAR_TABLE: str | None = None
-
 
 def char_table_for(chars: str) -> str:
     """Return the 256-entry (brightness -> char) lookup table for a gradient.
@@ -49,13 +44,6 @@ def char_table_for(chars: str) -> str:
         )
         _char_table_cache[chars] = table
     return table
-
-
-def _default_char_table() -> str:
-    global _DEFAULT_CHAR_TABLE
-    if _DEFAULT_CHAR_TABLE is None:
-        _DEFAULT_CHAR_TABLE = char_table_for(" .:-=+*#%@")
-    return _DEFAULT_CHAR_TABLE
 
 
 def luminance(r: int, g: int, b: int) -> int:
@@ -187,8 +175,15 @@ def resize_rgb24_area(
 
     x_ranges = _box_ranges(src_width, dst_width)
     y_ranges = _box_ranges(src_height, dst_height)
-    src = memoryview(frame)
     src_row_bytes = src_width * 3
+    # Split the source into one contiguous plane per channel once, instead of
+    # building a strided ``seg[0::3]`` view per cell per row. Slicing contiguous
+    # ``bytes`` is what makes the inner ``sum`` calls hit CPython's fast path:
+    # summing a strided memoryview falls back to per-element buffer access and
+    # costs roughly 1.5x more. Output is byte-for-byte identical either way.
+    r_plane = frame[0::3]
+    g_plane = frame[1::3]
+    b_plane = frame[2::3]
     out = bytearray(dst_width * dst_height * 3)
     pos = 0
     for y0, y1 in y_ranges:
@@ -197,19 +192,19 @@ def resize_rgb24_area(
             cols = x1 - x0
             if rows == 1 and cols == 1:
                 o = y0 * src_row_bytes + x0 * 3
-                out[pos] = src[o]
-                out[pos + 1] = src[o + 1]
-                out[pos + 2] = src[o + 2]
+                out[pos] = r_plane[o // 3]
+                out[pos + 1] = g_plane[o // 3]
+                out[pos + 2] = b_plane[o // 3]
             else:
                 n = rows * cols
                 r_sum = g_sum = b_sum = 0
-                row = y0 * src_row_bytes
+                base = y0 * src_width + x0
                 for _ in range(rows):
-                    seg = src[row + x0 * 3:row + x1 * 3]
-                    r_sum += sum(seg[0::3])
-                    g_sum += sum(seg[1::3])
-                    b_sum += sum(seg[2::3])
-                    row += src_row_bytes
+                    end = base + cols
+                    r_sum += sum(r_plane[base:end])
+                    g_sum += sum(g_plane[base:end])
+                    b_sum += sum(b_plane[base:end])
+                    base += src_width
                 out[pos] = (2 * r_sum + n) // (2 * n)
                 out[pos + 1] = (2 * g_sum + n) // (2 * n)
                 out[pos + 2] = (2 * b_sum + n) // (2 * n)
