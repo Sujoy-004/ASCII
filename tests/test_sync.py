@@ -10,7 +10,12 @@ from unittest import mock
 
 import pytest
 
-from src.audio import AudioPlayer, detect_audio_status
+from src.audio import (
+    AudioPlayer,
+    FFplayPlaybackError,
+    detect_audio_status,
+    has_audio_stream,
+)
 from src.config import Config
 from src.main import run
 from src.renderer import RGBAsciiRenderer
@@ -31,26 +36,34 @@ from src.timing import FrameClock
 # ---------------------------------------------------------------------------
 
 class FakeProc:
-    """Minimal subprocess.Popen stand-in."""
+    """Minimal subprocess.Popen stand-in.
 
-    def __init__(self, exited=False):
+    ``terminate``/``kill`` end the process with a non-zero status, the way a
+    real signalled process does, so tests catch code that mistakes its own
+    cleanup for an FFplay failure.
+    """
+
+    def __init__(self, exited=False, exit_code=0):
         self._exited = exited
+        self._exit_code = exit_code
         self.terminated = 0
         self.killed = 0
 
     def poll(self):
-        return None if not self._exited else 0
+        return None if not self._exited else self._exit_code
 
     def terminate(self):
         self.terminated += 1
         self._exited = True
+        self._exit_code = 1
 
     def kill(self):
         self.killed += 1
         self._exited = True
+        self._exit_code = 1
 
     def wait(self, timeout=None):
-        return 0
+        return self._exit_code
 
 
 class TimedProc(FakeProc):
@@ -131,10 +144,13 @@ def _make_player(ffplay, ft, proc):
     return player
 
 
-def _build_run(timeline, audio, ft, media_duration=None, num_frames=2, fps=1000):
+def _build_run(timeline, audio, ft, media_duration=None, num_frames=2, fps=1000,
+               reader=None, terminal=None):
     config = _config(fps)
-    reader = FakeReader([_black() for _ in range(num_frames)])
-    terminal = FakeTerminal()
+    if reader is None:
+        reader = FakeReader([_black() for _ in range(num_frames)])
+    if terminal is None:
+        terminal = FakeTerminal()
     clock = FrameClock(fps, now=ft.now, sleep_fn=ft.sleep)
     result = run(reader, RGBAsciiRenderer(config), terminal, clock, config,
                  audio, timeline, media_duration=media_duration)
@@ -202,7 +218,6 @@ def test_lateness_recording_three_cases():
     ft = FakeTime(start=100.0)
     clock = FrameClock(30, now=ft.now, sleep_fn=ft.sleep)
     clock.start()
-    d = clock.frame_duration
 
     # early (before deadline 100.0) -> sleeps to the deadline, not late
     ft.t = 100.0 - 0.010
@@ -260,6 +275,7 @@ def test_audio_player_wait_for_exit_times_out():
 
 def test_audio_status_confirmed():
     result = mock.Mock()
+    result.returncode = 0
     result.stdout = b"audio\n"
     with mock.patch("src.audio.subprocess.run", return_value=result):
         assert detect_audio_status("v.mp4", ffprobe="ffprobe") is AudioStatus.CONFIRMED
@@ -267,6 +283,7 @@ def test_audio_status_confirmed():
 
 def test_audio_status_absent():
     result = mock.Mock()
+    result.returncode = 0
     result.stdout = b""
     with mock.patch("src.audio.subprocess.run", return_value=result):
         assert detect_audio_status("v.mp4", ffprobe="ffprobe") is AudioStatus.ABSENT
@@ -279,6 +296,30 @@ def test_audio_status_unknown_when_ffprobe_missing():
 
 def test_audio_status_unknown_on_probe_error():
     with mock.patch("src.audio.subprocess.run", side_effect=OSError):
+        assert detect_audio_status("v.mp4", ffprobe="ffprobe") is AudioStatus.UNKNOWN
+
+
+def test_audio_status_unknown_on_probe_failure():
+    """A failed probe must never be reported as a confirmed absence.
+
+    ffprobe exits non-zero on an invalid input and prints nothing on stdout,
+    which is byte-for-byte what a genuinely audio-less file produces. Only the
+    return code separates the two.
+    """
+    result = mock.Mock()
+    result.returncode = 1
+    result.stdout = b""
+    with mock.patch("src.audio.subprocess.run", return_value=result):
+        assert detect_audio_status("v.mp4", ffprobe="ffprobe") is AudioStatus.UNKNOWN
+    # The failsafe bool must not treat a failed probe as "confirmed no audio".
+    with mock.patch("src.audio.subprocess.run", return_value=result):
+        assert has_audio_stream("v.mp4", ffprobe="ffprobe") is True
+
+
+def test_audio_status_unknown_when_probe_raises_subprocess_error():
+    with mock.patch(
+        "src.audio.subprocess.run", side_effect=subprocess.TimeoutExpired("ffprobe", 1)
+    ):
         assert detect_audio_status("v.mp4", ffprobe="ffprobe") is AudioStatus.UNKNOWN
 
 
@@ -353,6 +394,69 @@ def test_completion_policy_force_stops_if_audio_never_exits():
     assert timeline.audio_waited_for_exit is True
 
 
+# A still-running process at the timeout is our own doing, not a failure.
+def test_audio_stopped_at_completion_timeout_is_not_a_failure():
+    ft = FakeTime(start=0.0)
+    proc = TimedProc(now=ft.now, exits_at=None)  # never exits on its own
+    player = _make_player("ffplay", ft, proc)
+
+    timeline = PlaybackTimeline(
+        playback_start=0.0, audio_status=AudioStatus.CONFIRMED,
+        audio_launched_at=0.0,
+    )
+    result, _, _ = _build_run(timeline, player, ft, media_duration=5.0)
+    assert result == 0
+
+
+# A dead-but-clean audio process is not an error either: the video finished and
+# the audio simply reached end-of-file first.
+def test_audio_exiting_cleanly_before_video_eof_is_not_a_failure():
+    ft = FakeTime(start=0.0)
+    proc = FakeProc(exited=True, exit_code=0)
+    player = _make_player("ffplay", ft, proc)
+
+    timeline = PlaybackTimeline(
+        playback_start=0.0, audio_status=AudioStatus.CONFIRMED,
+        audio_launched_at=0.0,
+    )
+    result, _, _ = _build_run(timeline, player, ft, media_duration=5.0)
+    assert result == 0
+
+
+# A failed audio process must not be reported as a clean run.
+def test_failed_audio_process_before_video_eof_raises():
+    ft = FakeTime(start=0.0)
+    proc = FakeProc(exited=True, exit_code=1)
+    player = _make_player("ffplay", ft, proc)
+
+    timeline = PlaybackTimeline(
+        playback_start=0.0, audio_status=AudioStatus.CONFIRMED,
+        audio_launched_at=0.0,
+    )
+    with pytest.raises(FFplayPlaybackError, match="status 1"):
+        _build_run(timeline, player, ft, media_duration=5.0)
+
+
+# Cleanup still happens when the audio failure is raised.
+def test_failed_audio_process_still_cleans_up():
+    ft = FakeTime(start=0.0)
+    proc = FakeProc(exited=True, exit_code=1)
+    player = _make_player("ffplay", ft, proc)
+    reader = FakeReader([_black()])
+    terminal = FakeTerminal()
+
+    timeline = PlaybackTimeline(
+        playback_start=0.0, audio_status=AudioStatus.CONFIRMED,
+        audio_launched_at=0.0,
+    )
+    with pytest.raises(FFplayPlaybackError):
+        _build_run(timeline, player, ft, media_duration=5.0,
+                   reader=reader, terminal=terminal)
+    assert reader.closed
+    assert terminal.restored
+    assert player._process is None
+
+
 def test_interrupt_stops_audio_immediately():
     """Ctrl+C must stop audio without waiting for natural exit."""
     ft = FakeTime(start=0.0)
@@ -403,10 +507,16 @@ def test_run_audio_without_timeline_is_safe():
 # Media duration probing
 # ---------------------------------------------------------------------------
 
-def test_probe_media_duration_parses():
+def _probe_ok(stdout: bytes):
+    """A fake ffprobe run that succeeded (returncode 0) and printed stdout."""
     result = mock.Mock()
-    result.stdout = b"5.000000\n"
-    with mock.patch("src.audio.subprocess.run", return_value=result), \
+    result.returncode = 0
+    result.stdout = stdout
+    return result
+
+
+def test_probe_media_duration_parses():
+    with mock.patch("src.audio.subprocess.run", return_value=_probe_ok(b"5.000000\n")), \
          mock.patch("src.audio.shutil.which", return_value="ffprobe"):
         assert probe_media_duration("v.mp4") == pytest.approx(5.0)
 
@@ -416,10 +526,20 @@ def test_probe_media_duration_failsafe_none():
         assert probe_media_duration("v.mp4") is None
 
 
+def test_probe_media_duration_ignores_output_of_a_failed_probe():
+    """A non-zero exit means the output does not describe the file, even when
+    it happens to parse. Trusting it would shorten the audio-completion
+    timeout and cut the audio tail off at video EOF."""
+    with mock.patch("src.audio.subprocess.run",
+                    return_value=_probe_ok(b"1.000000\n")) as run, \
+         mock.patch("src.audio.shutil.which", return_value="ffprobe"):
+        run.return_value.returncode = 1
+        assert probe_media_duration("v.mp4") is None
+
+
 def test_probe_video_size_parses():
-    result = mock.Mock()
-    result.stdout = b"1920x1080\n"
-    with mock.patch("src.audio.subprocess.run", return_value=result), \
+    with mock.patch("src.audio.subprocess.run",
+                    return_value=_probe_ok(b"1920x1080\n")), \
          mock.patch("src.audio.shutil.which", return_value="ffprobe"):
         assert probe_video_size("v.mp4") == (1920, 1080)
 
@@ -430,10 +550,17 @@ def test_probe_video_size_failsafe_none_when_ffprobe_missing():
 
 
 def test_probe_video_size_failsafe_none_on_bad_output():
-    result = mock.Mock()
-    result.stdout = b"not-a-size\n"
-    with mock.patch("src.audio.subprocess.run", return_value=result), \
+    with mock.patch("src.audio.subprocess.run",
+                    return_value=_probe_ok(b"not-a-size\n")), \
          mock.patch("src.audio.shutil.which", return_value="ffprobe"):
+        assert probe_video_size("v.mp4") is None
+
+
+def test_probe_video_size_ignores_output_of_a_failed_probe():
+    with mock.patch("src.audio.subprocess.run",
+                    return_value=_probe_ok(b"1920x1080\n")) as run, \
+         mock.patch("src.audio.shutil.which", return_value="ffprobe"):
+        run.return_value.returncode = 1
         assert probe_video_size("v.mp4") is None
 
 
@@ -449,10 +576,16 @@ def test_audio_completion_timeout_timeline_based():
 
 
 
-def test_probe_video_timestamps_normalizes_and_preserves_vfr():
+def _ts_probe(stdout: bytes, returncode: int = 0):
+    """Patch the FFprobe call that backs probe_video_timestamps."""
     result = mock.Mock()
-    result.stdout = b"10.000000\n10.040000\n10.080000\n10.140000\n"
-    with mock.patch("src.sync.subprocess.run", return_value=result), \
+    result.stdout = stdout
+    result.returncode = returncode
+    return mock.patch("src.sync.subprocess.run", return_value=result)
+
+
+def test_probe_video_timestamps_normalizes_and_preserves_vfr():
+    with _ts_probe(b"10.000000\n10.040000\n10.080000\n10.140000\n"), \
          mock.patch("src.sync.shutil.which", return_value="ffprobe"):
         assert probe_video_timestamps("v.mp4") == pytest.approx(
             (0.0, 0.04, 0.08, 0.14)
@@ -460,8 +593,70 @@ def test_probe_video_timestamps_normalizes_and_preserves_vfr():
 
 
 def test_probe_video_timestamps_failsafe_none():
-    result = mock.Mock()
-    result.stdout = b"N/A\n"
-    with mock.patch("src.sync.subprocess.run", return_value=result), \
+    with _ts_probe(b"N/A\n"), \
          mock.patch("src.sync.shutil.which", return_value="ffprobe"):
         assert probe_video_timestamps("v.mp4") is None
+
+
+# A row without a value must invalidate the whole timeline, never be skipped:
+# skipping it would shift every later frame onto a neighbour's timestamp.
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        pytest.param(b"0.000000\n0.040000\nN/A\n0.100000\n", id="na_mid_stream"),
+        pytest.param(b"0.000000\n\n0.080000\n", id="blank_line"),
+        pytest.param(b"0.000000\nnot-a-number\n0.080000\n", id="unparseable"),
+        pytest.param(b"0.000000\nnan\n0.080000\n", id="nan"),
+        pytest.param(b"0.000000\ninf\n0.080000\n", id="inf"),
+        pytest.param(b"0.000000\n-inf\n0.080000\n", id="neg_inf"),
+    ],
+)
+def test_probe_video_timestamps_rejects_unusable_rows(stdout):
+    with _ts_probe(stdout), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4") is None
+
+
+# Out-of-order presentation must be caught on the raw values: the old code
+# clamped negatives to 0.0 before checking, which accepted this outright.
+def test_probe_video_timestamps_rejects_out_of_order():
+    with _ts_probe(b"-0.040000\n0.000000\n-0.080000\n"), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4") is None
+
+
+def test_probe_video_timestamps_normalizes_negative_start():
+    with _ts_probe(b"-0.080000\n-0.040000\n0.000000\n"), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4") == pytest.approx(
+            (0.0, 0.04, 0.08)
+        )
+
+
+# A repeated timestamp keeps every frame aligned, so it stays usable.
+def test_probe_video_timestamps_accepts_duplicate_timestamps():
+    with _ts_probe(b"0.000000\n0.040000\n0.040000\n"), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4") == pytest.approx(
+            (0.0, 0.04, 0.04)
+        )
+
+
+def test_probe_video_timestamps_rejects_failed_probe():
+    with _ts_probe(b"0.000000\n0.040000\n", returncode=1), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4") is None
+
+
+# A timeline far shorter than the media cannot describe the same file.
+def test_probe_video_timestamps_rejects_duration_mismatch():
+    stdout = b"0.000000\n0.040000\n0.080000\n"
+    with _ts_probe(stdout), \
+         mock.patch("src.sync.shutil.which", return_value="ffprobe"):
+        assert probe_video_timestamps("v.mp4", duration=600.0) is None
+        assert probe_video_timestamps("v.mp4", duration=0.1) == pytest.approx(
+            (0.0, 0.04, 0.08)
+        )
+        assert probe_video_timestamps("v.mp4") == pytest.approx(
+            (0.0, 0.04, 0.08)
+        )

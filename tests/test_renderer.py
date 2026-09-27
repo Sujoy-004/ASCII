@@ -101,7 +101,9 @@ def test_lut_render_matches_reference_color_and_nocol():
             row = y * w * 3
             for x in range(w):
                 offset = row + x * 3
-                r = frame[offset]; g = frame[offset + 1]; b = frame[offset + 2]
+                r = frame[offset]
+                g = frame[offset + 1]
+                b = frame[offset + 2]
                 bright = int(0.299 * r + 0.587 * g + 0.114 * b)
                 ch = char_for_brightness(bright, cfg.chars)
                 if enable_color:

@@ -53,7 +53,8 @@ ANSI True Color
 ```
 
 Everything — terminal size, video dimensions, aspect ratio, audio, color, and
-timing — is detected and chosen automatically. **No flags are needed.**
+timing — is detected and chosen automatically. **No flags are needed**: every
+option below is a tweak for a specific situation, not a setup step.
 
 ---
 
@@ -73,6 +74,7 @@ timing — is detected and chosen automatically. **No flags are needed.**
 - **Aspect-ratio preservation** — corrects for non-square terminal characters.
 - **Audio-master playback timing** — when FFplay exposes its media clock, video deadlines follow the audio-derived playback position; a monotonic fallback remains available.
 - **Real-time frame dropping** — stale frames are dropped to stay on track when the terminal can't keep up.
+- **Adaptive quality** (on by default) — when the pipeline can't hold its frame budget, optional work is shed in a fixed order (temporal smoothing first, then color) instead of dropping frames. It never changes frame timing, frame selection, or audio sync, so playback stays smooth and synchronized; only detail is reduced. Turn it off with `--no-adaptive` when you want byte-identical output regardless of machine speed.
 - **Optional temporal smoothing** blends displayed frames for a smoother look.
 - **Arbitrary local video paths** — relative, absolute, or with spaces; no copying needed.
 - **Standard-library Python** — no third-party Python packages at runtime.
@@ -166,6 +168,83 @@ python -m src.main "assets/videos/test.mp4"
 - **Paths containing spaces** work (the path is one argument).
 - `Ctrl+C` stops playback cleanly and restores your terminal.
 
+### Installation
+
+Nothing is required to run it from a clone — the runtime is standard library
+only, so `python -m src.main` works as-is. To get the `rgb-ascii` command and
+the test suite on your `PATH`:
+
+```bash
+git clone https://github.com/Sujoy-004/ASCII.git
+cd ASCII
+python -m pip install -e ".[dev]"
+rgb-ascii "assets/videos/test.mp4"     # same as python -m src.main
+```
+
+FFmpeg and FFplay are still external executables and must be on your `PATH` (see
+Requirements).
+
+### Options
+
+There is one flag, because there is one thing worth overriding per run:
+
+| Flag | Effect |
+|------|--------|
+| `--adaptive` / `--no-adaptive` | Force adaptive quality on or off. Omit it to use the default (on), or set `RGB_ASCII_NO_ADAPTIVE=1`. |
+
+`--help` lists the full set of environment variables. The ones you are most
+likely to reach for:
+
+| Variable | Effect |
+|----------|--------|
+| `RGB_ASCII_NO_ADAPTIVE=1` | Disable adaptive quality (same as `--no-adaptive`). |
+| `RGB_ASCII_HALF_BLOCK=1` | Double vertical color density with `▀` half-blocks. |
+| `RGB_ASCII_NO_AUDIO=1` | Skip the audio track entirely. |
+
+Environment values are read leniently: a numeric variable that cannot be read,
+or an out-of-range value, falls back to the default rather than being fatal, so
+a typo degrades instead of refusing to play. Booleans follow one rule — any
+value other than `0`, `false`, `no` or `off` counts as "on". An explicit flag
+always wins over the environment.
+
+Half-block mode encodes two colors per cell, so it cannot be combined with
+`RGB_ASCII_NO_COLOR`; that combination is rejected with a clear error instead of
+failing mid-playback.
+
+### Development
+
+```bash
+python -m pytest        # full suite; no FFmpeg or terminal required
+python -m mypy          # type-check the package
+python -m ruff check .  # lint (rule scope documented in pyproject.toml)
+```
+
+The test suite is fully hermetic — FFmpeg, FFplay and FFprobe are faked — so it
+runs anywhere Python does, and the same commands run in CI on Linux and Windows
+against Python 3.10 and 3.13.
+
+### Benchmark
+
+`bench.py` measures the render pipeline (smooth → resize → render → write) with
+no FFmpeg, no terminal, and a fixed seed, so runs are comparable across
+processes and machines:
+
+```bash
+python bench.py                                   # default grids
+python bench.py --sizes 160x48                    # pure steady state (src == grid)
+python bench.py --src 640x360                     # the terminal-resize path
+python bench.py --json base.json                  # save
+python bench.py --json base.json --baseline base.json   # before/after
+```
+
+The default source size (160×48) matches the largest default grid, so that row is
+what the player actually does in steady state; the smaller default grids
+(80×22, 120×38) also pay an area resize. Pass a `--src` equal to each grid to
+measure pure steady-state playback. A before/after column is only printed when
+both runs measured the same work; a baseline with a different source size, sink
+or seed is refused rather than silently compared, and the run prints absolute
+numbers with the reason.
+
 ### requirements.txt
 
 `requirements.txt` lists **Python** package dependencies only. The runtime is
@@ -215,18 +294,23 @@ are documented here and in the install section rather than in
 ```
 ASCII/
 ├── src/
-│   ├── main.py        CLI entry point and orchestration
-│   ├── video.py       FFmpeg decoding
-│   ├── renderer.py    RGB → luminance → ASCII, RGB → ANSI color
-│   ├── terminal.py    Size detection, ANSI control, screen adaptation
-│   ├── timing.py      Frame pacing toward absolute deadlines
-│   ├── audio.py       FFplay playback, FFprobe audio detection
-│   ├── sync.py        Shared playback timeline & completion policy
-│   ├── framesel.py    Timeline-based frame selection & dropping
-│   ├── smoothing.py   Optional temporal smoothing
-│   └── config.py      All tunable settings
-├── tests/             pytest suite
-├── assets/            Test media (assets/videos/test.mp4)
+│   ├── __init__.py     Package marker (modules import as `src.*`)
+│   ├── main.py         CLI entry point and orchestration
+│   ├── video.py        FFmpeg decoding
+│   ├── renderer.py     RGB → luminance → ASCII, RGB → ANSI color
+│   ├── terminal.py     Size detection, ANSI control, screen adaptation
+│   ├── timing.py       Frame pacing toward absolute deadlines
+│   ├── audio.py        FFplay playback, FFprobe audio detection
+│   ├── sync.py         Shared playback timeline & completion policy
+│   ├── framesel.py     Timeline-based frame selection & dropping
+│   ├── smoothing.py    Optional temporal smoothing
+│   ├── adaptive.py     Adaptive quality: utilization tracking & lever shedding
+│   └── config.py       All tunable settings
+├── tests/              pytest suite (hermetic; no FFmpeg needed)
+├── assets/             Test media (assets/videos/test.mp4)
+├── bench.py            Seeded render-pipeline benchmark
+├── .github/workflows/  CI: compile, import, pytest, mypy, ruff, bench smoke
+│                       on Linux/Windows × Python 3.10/3.13
 ├── README.md
 ├── requirements.txt
 ├── pyproject.toml
@@ -244,6 +328,25 @@ depends heavily on your terminal emulator.
 
 **Frame dropping** keeps playback near the current timeline when the terminal
 can't keep up — a deliberate real-time tradeoff rather than a slowdown.
+**Adaptive quality** complements it: before frames start dropping, optional work
+is shed so detail degrades instead of smoothness.
+
+Measured with `python bench.py --sizes 160x48` (Python 3.11, Windows, steady
+state where the source size equals the grid, so no resize happens; 30 FPS =
+33.3 ms/frame budget). These are machine-specific — reproduce before trusting
+them for your setup:
+
+| Configuration (160×48 grid) | Cost per frame | Headroom vs. budget |
+|-----------------------------|----------------|---------------------|
+| Mono, no smoothing | ~2.2 ms | ~15× |
+| Color, no smoothing | ~4.8 ms | ~7× |
+| Half-block, no smoothing | ~10.5 ms | ~3× |
+| Color, with smoothing | ~7.5 ms | ~4× |
+
+Smoothing costs roughly 1–1.5 ms/frame at this size (it blends per decoded
+source pixel, so it scales with the decoded frame rather than the grid).
+Grid sizes smaller than the source add a resize; `--src 640x360` shows that
+path deliberately. Run `python bench.py` for numbers on your own machine.
 
 ---
 
@@ -260,10 +363,17 @@ Accurately stated, not hidden:
 
 ## ◆ Roadmap / Future Work
 
-- Controlled PCM/audio-device playback if true sample-accurate device-clock synchronization is required.
-- Configurable character gradients and resolution via CLI flags.
-- Frame-timestamp synchronization and automatic FPS detection.
+Not yet done, and genuinely open:
+
+- Controlled PCM/audio-device playback if true sample-accurate device-clock
+  synchronization is required (see Limitations).
+- Configurable character gradients and resolution via CLI flags, rather than the
+  environment variables used today.
 - ASCII image-renderer mode and webcam/stream input.
+
+Already implemented, and previously listed here: source-frame-timestamp
+synchronization with automatic FPS detection (see How It Works, step 5) and
+adaptive quality.
 
 ---
 

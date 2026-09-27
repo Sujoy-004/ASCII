@@ -71,11 +71,18 @@ class TemporalSmoother:
         )
         self._prev: bytearray | None = None
         self.smoothed_frames: int = 0
-        # Precomputed 256x256 blend table (M8 hot path): entry
-        # [prev*256 + cur] == round(prev*(1-a) + cur*a), so the per-byte hot
-        # loop is a single table lookup instead of per-pixel float math. This
-        # is byte-identical to the naive formula. Built only when enabled.
+        # Precomputed 256x256 blend table: entry [prev*256 + cur] ==
+        # round(prev*(1-a) + cur*a), so the per-byte hot loop is a single
+        # table lookup instead of per-pixel float math. This is byte-identical
+        # to the naive formula. Built only when enabled.
         self._blend_table: bytes | None = None
+        # The same table sliced into 256 rows, so the hot loop indexes it as
+        # ``rows[prev_byte][cur_byte]`` instead of computing ``prev << 8 | cur``
+        # itself. The rows are slices (copies) taken from the single table at
+        # construction, so they cannot disagree with it, and the row lookup
+        # replaces a shift, an OR and a bounds-checked flat index with two
+        # plain sequence indexes inside a list comprehension.
+        self._blend_rows: tuple[bytes, ...] = ()
         if self.enabled:
             table = bytearray(256 * 256)
             one_minus = 1.0 - self.alpha
@@ -85,6 +92,9 @@ class TemporalSmoother:
                 for c in range(256):
                     table[base + c] = int(p * one_minus + c * a + 0.5)
             self._blend_table = bytes(table)
+            self._blend_rows = tuple(
+                self._blend_table[p * 256:(p + 1) * 256] for p in range(256)
+            )
 
     def smooth(self, frame: bytes) -> bytes:
         """Return the frame to display, blended toward the previous display.
@@ -95,21 +105,25 @@ class TemporalSmoother:
         - Otherwise: ``prev*(1-alpha) + current*alpha`` per channel byte.
         """
         if not self.enabled:
+            # Disabled means no retained history: drop it, so a later re-enable
+            # (the adaptive quality controller shedding load and then
+            # recovering) blends against the frame actually being displayed
+            # instead of a stale pre-downgrade ghost, and so the next
+            # initialization is a direct copy rather than a blend.
+            self._prev = None
             return frame
         if self._prev is None:
             self._prev = bytearray(frame)
             return frame
-        return self._blend(frame)
+        return self._blend(self._prev, frame)
 
-    def _blend(self, frame: bytes) -> bytes:
-        table = self._blend_table
-        prev = self._prev
-        n = len(prev)
-        out = bytearray(n)
+    def _blend(self, prev: bytearray, frame: bytes) -> bytes:
+        rows = self._blend_rows
         # One bounded pass over the RGB channel bytes; each output byte is a
-        # single lookup into the precomputed 256x256 blend table (no NumPy).
-        for i in range(n):
-            out[i] = table[(prev[i] << 8) | frame[i]]
-        self._prev = out
+        # single row-then-column lookup into the precomputed 256x256 blend
+        # table (no NumPy, no float math). ``zip`` drives the walk and
+        # ``bytes(bytearray(...))`` materialises it in one C-level pass.
+        out = bytes(bytearray([rows[p][c] for p, c in zip(prev, frame)]))
+        self._prev = bytearray(out)
         self.smoothed_frames += 1
-        return bytes(out)
+        return out

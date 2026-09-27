@@ -35,9 +35,8 @@ def _clock(fps, fake: FakeTime):
 
 # Test 1 — Frame duration
 def test_frame_duration():
-    assert FrameClock.frame_budget(30) == pytest.approx(1 / 30)
-    assert FrameClock.frame_budget(60) == pytest.approx(1 / 60)
     assert FrameClock(30).frame_duration == pytest.approx(1 / 30)
+    assert FrameClock(60).frame_duration == pytest.approx(1 / 60)
 
 
 # Test 2 — Absolute deadlines
@@ -177,6 +176,9 @@ def test_media_clock_controls_wait_target():
     clock = FrameClock(10, now=ft.now, sleep_fn=ft.sleep)
     clock.start()
     clock.set_media_clock(lambda: media[0])
+    # set_media_clock alone does not make the clock authoritative -- adoption is
+    # explicit, so wait_until actually takes its media-clock branch here.
+    assert clock.adopt_media_clock() is True
     clock.wait_until(clock.deadline(1))
     assert ft.sleeps == [pytest.approx(0.1)]
     assert clock.stats.frame_count == 1
@@ -211,4 +213,109 @@ def test_media_timestamps_override_fixed_fps_targets():
     assert clock.target_media_time(0) == pytest.approx(0.0)
     assert clock.target_media_time(1) == pytest.approx(0.04)
     assert clock.target_media_time(3) == pytest.approx(0.14)
-    assert clock.target_media_time(4) == pytest.approx(0.4)
+    # Past the final frame the answer continues the source's own timeline at the
+    # source's own last inter-frame duration (0.14 + 0.06 = 0.20), NOT the
+    # fixed-FPS grid, which would have said 0.4 and placed the final frame's
+    # display slot in the past.
+    assert clock.target_media_time(4) == pytest.approx(0.20)
+    assert clock.target_media_time(5) == pytest.approx(0.26)
+
+
+# The deadline is what actually paces playback, so it must follow the source
+# timestamps rather than the fixed frame duration.
+def test_deadline_follows_source_timestamps():
+    clock = FrameClock(30, now=lambda: 0.0, sleep_fn=lambda _: None)
+    clock.start(100.0)
+    clock.set_media_timestamps((0.0, 0.04, 0.50))
+    assert clock.deadline(0) == pytest.approx(100.0)
+    assert clock.deadline(1) == pytest.approx(100.04)
+    assert clock.deadline(2) == pytest.approx(100.50)
+
+
+# Without a trusted timeline the fixed-FPS schedule is unchanged.
+def test_deadline_without_timestamps_still_uses_fixed_fps():
+    clock = FrameClock(30, now=lambda: 0.0, sleep_fn=lambda _: None)
+    clock.start(100.0)
+    assert clock.deadline(1) == pytest.approx(100.0 + 1 / 30)
+
+
+# Variable frame durations reach the sleep, not just the reported targets:
+# these are the irregular gaps of a real VFR source.
+def test_variable_rate_pacing_sleeps_to_source_timestamps():
+    fake = FakeTime(start=0.0)
+    clock = _clock(30, fake)
+    clock.start(0.0)
+    clock.set_media_timestamps((0.0, 0.033, 0.100, 0.500))
+    for index in range(4):
+        clock.wait_until(clock.deadline(index))
+    assert fake.slept == pytest.approx([0.033, 0.067, 0.400])
+
+
+# The media clock and the monotonic deadline must pace against the same
+# canonical target, so both branches sleep for identical amounts.
+def test_media_clock_and_deadline_agree_on_variable_rate_target():
+    fake = FakeTime(start=0.0)
+    media = [0.0]
+    clock = _clock(30, fake)
+    clock.start(0.0)
+    clock.set_media_timestamps((0.0, 0.200))
+    clock.set_media_clock(lambda: media[0])
+    # Adopted, so this exercises the media-clock branch of wait_until rather
+    # than silently falling through to the identical `else` branch.
+    assert clock.adopt_media_clock() is True
+    clock.wait_until(clock.deadline(1))
+    assert fake.slept == pytest.approx([0.200])
+
+
+# The media-clock branch of wait_until targets `deadline - media_now` rather than
+# the absolute deadline, so a clock that disagrees with the monotonic basis moves
+# the sleep. This is the only direct coverage of that branch.
+def test_media_clock_branch_retargets_the_sleep():
+    fake = FakeTime(start=0.0)
+    media = [0.15]
+    clock = _clock(30, fake)
+    clock.start(0.0)
+    clock.set_media_clock(lambda: media[0])
+    assert clock.adopt_media_clock() is True
+    # deadline(1) is start + 1/30 = 0.0333; media says 0.15 has already
+    # elapsed, so the frame is already overdue and nothing should be slept.
+    clock.wait_until(clock.deadline(1))
+    assert fake.slept == []
+
+
+# Every fake clock in the suite sleeps exactly what it is asked, so the lateness
+# path that a real scheduler exercises has no coverage. The threshold exists for
+# exactly this, so drive it.
+def test_oversleep_is_recorded_as_lateness():
+    class DriftingTime:
+        def __init__(self):
+            self.t = 0.0
+            self.drift = 0.0
+
+        def now(self):
+            return self.t
+
+        def sleep(self, seconds):
+            self.t += seconds + self.drift
+
+    ft = DriftingTime()
+    clock = FrameClock(10, now=ft.now, sleep_fn=ft.sleep)
+    clock.start(0.0)
+    clock.wait_until(clock.deadline(0))  # on time
+    ft.drift = 0.01
+    lateness = clock.wait_until(clock.deadline(1))  # oversleeps by 10 ms
+    assert lateness == pytest.approx(0.01)
+    assert clock.stats.late_frames == 1
+    assert clock.stats.on_time_frames == 1
+    assert clock.report()["max_lateness_ms"] == pytest.approx(10.0)
+
+
+# A late frame must not shift later deadlines off the source timeline.
+def test_variable_rate_deadlines_are_independent_of_lateness():
+    fake = FakeTime(start=0.0)
+    clock = _clock(30, fake)
+    clock.start(0.0)
+    clock.set_media_timestamps((0.0, 0.033, 0.100, 0.500))
+    before = [clock.deadline(i) for i in range(4)]
+    fake.advance(0.250)  # badly late; the schedule must not move
+    assert [clock.deadline(i) for i in range(4)] == pytest.approx(before)

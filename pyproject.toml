@@ -9,9 +9,75 @@ description = "Real-time RGB ASCII video renderer using Python, FFmpeg, and ANSI
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+keywords = ["ascii", "video", "terminal", "ffmpeg", "ansi", "truecolor", "player"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video :: Display",
+    "Topic :: Terminals",
+]
+
+# The application itself is standard-library only; FFmpeg/FFplay are external
+# executables, not Python dependencies. See requirements.txt.
+dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "mypy>=1.0", "ruff>=0.1"]
+
+[project.urls]
+Homepage = "https://github.com/Sujoy-004/ASCII"
+Source = "https://github.com/Sujoy-004/ASCII"
+Issues = "https://github.com/Sujoy-004/ASCII/issues"
+
+[project.scripts]
+# Equivalent to the documented `python -m src.main`. src/main.py derives its
+# own argparse prog name so `--help` shows whichever one was invoked.
+rgb-ascii = "src.main:main"
 
 [tool.setuptools]
+# Required, not decorative: without it setuptools flat-layout auto-discovery
+# cannot tell the `src` directory from top-level py-modules and silently
+# installs main.py/config.py/video.py/... into site-packages root.
 packages = ["src"]
+
+[tool.pytest.ini_options]
+# The package lives at the repo root as the import package `src`, so tests
+# using `from src.config import ...` need the root on sys.path. `python -m
+# pytest` supplies it implicitly, but a bare `pytest` does not -- this makes
+# both work, and makes the suite runnable from any directory.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.mypy]
+# Type-check the package, not the test suite. Deliberately not strict: the
+# renderer works in bytes and the tests use duck-typed doubles on purpose.
+files = ["src"]
+python_version = "3.10"
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Deliberately narrow. E4/E7/E9 + F is the pyflakes-plus-pycodestyle gate that
+# catches real defects (undefined names, unused/undefined bindings, syntax and
+# import errors) without demanding a reformat of the whole codebase.
+#
+# F is not academic here: pyflakes is what caught the undefined `_QUALITY_NAMES`
+# in the adaptive-quality debug report before it shipped as a guaranteed
+# traceback on every debug run.
+#
+# Deliberately NOT enabled: the formatter-adjacent and opinionated families
+# (I, UP, SIM, PLR, RUF, B, C4, ...). They are not errors, and adopting them
+# would mean mass-reformatting code unrelated to correctness. Widen this list
+# deliberately, in its own change, once the codebase is ready for it.
+select = ["E4", "E7", "E9", "F"]

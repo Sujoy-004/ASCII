@@ -7,7 +7,6 @@ invariance, startup policy, and integration through `run()` (including the
 M5 audio completion policy remaining intact during frame dropping).
 """
 
-import subprocess
 from unittest import mock
 
 import pytest
@@ -217,6 +216,25 @@ def test_dropping_does_not_shift_later_deadlines():
     frame, idx = sel.next()
     assert idx >= 2                        # something was dropped/advanced
     assert clock.deadline(5) == deadline_before   # timeline untouched
+
+
+# Without an audio clock, staleness is judged against deadline(idx + 1), so it
+# must honour the source timeline: frame 1 is 0.5s away even though a 1/30 slot
+# has long since passed. Dropping it here would discard a frame still wanted.
+def test_staleness_follows_source_timestamps_without_audio():
+    ft = FakeTime(start=10.0)
+    reader = FakeReader(_frames(3))
+    clock = _clock(ft)
+    clock.start(start_time=10.0)
+    clock.set_media_timestamps((0.0, 0.500, 0.533))
+    sel = FrameSelector(reader, clock)
+
+    assert sel.next()[1] == 0              # first frame is always presented
+    ft.t = 10.100                          # past 1/30, short of the 0.5s PTS
+    frame, idx = sel.next()
+    assert frame is not None                # frame 1 was wanted, and presented
+    assert idx == 1
+    assert sel.stats.dropped == 0
 
 
 # ---------------------------------------------------------------------------

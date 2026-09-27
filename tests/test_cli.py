@@ -1,22 +1,24 @@
 """Tests for the final one-command CLI and its internal environment config.
 
-The public patient-facing interface is a single required positional video
-path:  python -m src.main "PATH_TO_VIDEO"
+The patient-facing interface is a single required positional video path:
+  python -m src.main "PATH_TO_VIDEO"
 
-Nothing else is exposed on the command line. Internal development knobs
-(fps, smoothing, presets, color/audio toggles, debug) are configured through
-optional RGB_ASCII_* environment variables so the public CLI stays minimal
-without losing the ability to exercise those code paths.
+plus one flag that is worth setting per run (--adaptive / --no-adaptive). Every
+other development knob (fps, smoothing, presets, color/audio toggles, debug) is
+configured through optional RGB_ASCII_* environment variables, so the public
+CLI stays minimal without losing the ability to exercise those code paths.
 """
 
-import os
-from unittest import mock
+import re
+from pathlib import Path
 
 import pytest
 
 from src.config import CHAR_PRESETS, DEFAULT_CHARS, Config
 from src.main import build_parser, config_from_args
 from src.renderer import RGBAsciiRenderer
+
+MAIN_SOURCE = Path(__file__).resolve().parent.parent / "src" / "main.py"
 
 
 def parse(*argv):
@@ -38,14 +40,102 @@ def test_missing_video_argument_rejected():
 
 
 def test_no_public_flags_exposed():
-    # The finished v1 exposes only the video path; any other flag must be
-    # rejected so users are not tempted to configure things manually.
+    # Only the video path and the adaptive-quality flag are public; the internal
+    # knobs stay behind RGB_ASCII_* so users are not tempted to configure them
+    # manually.
     with pytest.raises(SystemExit):
         parse("vid.mp4", "--debug")
     with pytest.raises(SystemExit):
         parse("vid.mp4", "--preset", "dense")
     with pytest.raises(SystemExit):
         parse("vid.mp4", "--no-color")
+
+
+# ---------------------------------------------------------------------------
+# Adaptive quality flag
+# ---------------------------------------------------------------------------
+
+def test_adaptive_flag_defaults_to_unset_so_env_can_win():
+    assert parse("vid.mp4").adaptive is None
+
+
+def test_adaptive_flag_both_directions():
+    assert parse("vid.mp4", "--adaptive").adaptive is True
+    assert parse("vid.mp4", "--no-adaptive").adaptive is False
+
+
+def test_no_adaptive_flag_beats_env(monkeypatch):
+    """An explicit flag must override an inherited environment setting, in
+    either direction -- otherwise a stray RGB_ASCII_NO_ADAPTIVE in a shell
+    profile silently defeats the flag the user just typed."""
+    args = parse("vid.mp4", "--no-adaptive")
+    monkeypatch.setenv("RGB_ASCII_NO_ADAPTIVE", "1")
+    assert config_from_args(args).adaptive_quality is False
+
+    args = parse("vid.mp4", "--adaptive")
+    monkeypatch.setenv("RGB_ASCII_NO_ADAPTIVE", "1")
+    assert config_from_args(args).adaptive_quality is True
+
+
+def test_adaptive_env_applies_when_flag_absent(monkeypatch):
+    monkeypatch.setenv("RGB_ASCII_NO_ADAPTIVE", "1")
+    assert config_from_args(parse("vid.mp4")).adaptive_quality is False
+    monkeypatch.delenv("RGB_ASCII_NO_ADAPTIVE")
+    # The documented default stays adaptive when nothing says otherwise.
+    assert config_from_args(parse("vid.mp4")).adaptive_quality is True
+
+
+def test_adaptive_env_follows_the_same_truthiness_rule_as_every_other_bool():
+    """All five RGB_ASCII_* booleans share one rule: any value outside the
+    falsey set means "on". NO_ADAPTIVE must not invent a stricter rule of its
+    own, or the same string would mean different things for --no-color and
+    --no-adaptive."""
+    falsey = ["", "0", "false", "no", "off", "FALSE", "Off"]
+    truthy = ["1", "true", "yes", "on", "maybe"]  # unrecognised => still "on"
+    for value in falsey:
+        monkey = pytest.MonkeyPatch()
+        monkey.setenv("RGB_ASCII_NO_ADAPTIVE", value)
+        monkey.setenv("RGB_ASCII_NO_COLOR", value)
+        try:
+            config = config_from_args(parse("vid.mp4"))
+            assert config.adaptive_quality is True, value
+            assert config.enable_color is True, value
+        finally:
+            monkey.undo()
+    for value in truthy:
+        monkey = pytest.MonkeyPatch()
+        monkey.setenv("RGB_ASCII_NO_ADAPTIVE", value)
+        monkey.setenv("RGB_ASCII_NO_COLOR", value)
+        try:
+            config = config_from_args(parse("vid.mp4"))
+            assert config.adaptive_quality is False, value
+            assert config.enable_color is False, value
+        finally:
+            monkey.undo()
+
+
+# ---------------------------------------------------------------------------
+# Help text cannot drift from the code
+# ---------------------------------------------------------------------------
+
+def test_help_documents_every_env_var_the_code_reads():
+    """--help advertises the RGB_ASCII_* surface, so a newly read variable that
+    nobody documents would be invisible to users. Deriving the list from the
+    source keeps the epilog honest without a second hand-maintained copy."""
+    help_text = build_parser().format_help()
+    read_by_code = set(re.findall(r"RGB_ASCII_[A-Z_]+", MAIN_SOURCE.read_text(encoding="utf-8")))
+    assert read_by_code, "expected the source to reference RGB_ASCII_* vars"
+    undocumented = sorted(v for v in read_by_code if v not in help_text)
+    assert not undocumented, f"undocumented env vars in --help: {undocumented}"
+
+
+def test_help_preset_names_match_the_real_presets():
+    """The epilog names the presets a user can pass. An invented name is worse
+    than no name: RGB_ASCII_PRESET silently falls back to the default for an
+    unknown preset, so the typo looks like it worked."""
+    help_text = build_parser().format_help()
+    for name in CHAR_PRESETS:
+        assert name in help_text, f"preset {name!r} missing from --help"
 
 
 def test_video_argument_preserved_with_spaces():
