@@ -1,13 +1,16 @@
 """Tests for the FFmpeg frame reader's partial-read and failure handling.
 
-The real FFmpeg subprocess is not exercised here (it would be slow and
-environment-dependent). Instead we verify the exact-read loop against a fake
-byte stream that returns partial chunks, and drive the process lifecycle with a
-scripted fake Popen -- which is what proves a failed decode is reported as an
-error instead of a clean end of playback.
+The real FFmpeg subprocess is exercised only by the one test at the bottom of
+this file, which is skipped when FFmpeg is not installed; everything above it
+verifies the exact-read loop against a fake byte stream that returns partial
+chunks and drives the process lifecycle with a scripted fake Popen. That is
+what proves a failed decode is reported as an error instead of a clean end of
+playback, and that a merely-concealed corruption still plays through.
 """
 
 import io
+import re
+import shutil
 import subprocess
 from unittest import mock
 
@@ -17,6 +20,7 @@ from src.video import (
     FFmpegDecodeError,
     FFmpegFrameReader,
     FFmpegNotFoundError,
+    classify_decode_termination,
 )
 
 
@@ -98,7 +102,10 @@ def test_decode_command_preserves_variable_frame_rate(tmp_path, monkeypatch):
     reader.close()
     cmd = captured["cmd"]
     assert cmd[cmd.index("-fps_mode") + 1] == "passthrough"
-    assert "-xerror" in cmd  # the prior hardening must survive
+    # -xerror must stay out: it made FFmpeg abort on a corruption the decoder
+    # conceals and recovers from, killing playback that would otherwise be
+    # fine. read_frame() now judges a clean exit by the captured log instead.
+    assert "-xerror" not in cmd
 
 
 # ---------------------------------------------------------------------------
@@ -295,3 +302,312 @@ def test_close_survives_terminate_error(tmp_path, monkeypatch):
     reader.close()
     assert proc.stdout.closed
     assert proc.stderr_file.closed
+
+
+# ---------------------------------------------------------------------------
+# Decode strictness: what a short read on a clean exit actually means
+# ---------------------------------------------------------------------------
+
+# Real ffmpeg 9 output at "-loglevel error" *without* -xerror for the two
+# canonical cases, shaped like _stderr_tail() hands it over (no trailing
+# newline, most-recent lines last). A truncated download logs the fatal
+# "partial file" marker inside a burst of decoder noise; a one-byte corruption
+# logs only recoverable frame errors and still decodes every frame.
+TRUNCATED_TAIL = (
+    "[h264 @ 0000029f1c3b45a20] Reference 4 >= 4\n"
+    "[h264 @ 0000029f1c3b45a20] error while decoding MB 13 0, bytestream 1409\n"
+    "[h264 @ 0000029f1c3b45a20] Invalid NAL unit size (2851 > 1024), skipping 0 bytes\n"
+    "[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 000001d663442480] stream 0, offset 0x12f87: partial file\n"
+    "[h264 @ 0000029f1c3b45a20] missing picture in access unit"
+)
+CORRUPT_BYTE_TAIL = (
+    "[h264 @ 0000029f1c3b45a20] Reference 5 >= 5\n"
+    "[h264 @ 0000029f1c3b45a20] error while decoding MB 13 0, bytestream 1409"
+)
+CONCEALED_TAIL = (
+    "[h264 @ 0000029f1c3b45a20] top block unavailable for requested intra4x4 mode\n"
+    "[h264 @ 0000029f1c3b45a20] no frame! - increasing mb_size 32\n"
+    "[h264 @ 0000029f1c3b45a20] mmco: unref short failure\n"
+    "[h264 @ 0000029f1c3b45a20] co located POCs unavailable"
+)
+
+
+@pytest.mark.parametrize(
+    "tail, fatal, marker",
+    [
+        # --- fatal: the container/stream itself ended early ----------------
+        ("[mp4 @ 000001f4a1b2c3d0] moov atom not found", True, "moov atom not found"),
+        ("[h264 @ 0000029f1c3b45a20] stream 0, offset 0x12f87: partial file",
+         True, "partial file"),
+        ("[in#0 @ 000001f4a1b2c3d0] Error opening input: Invalid data found "
+         "when processing input", True, "error opening input"),
+        # "corrupt input packet in stream %d" is what ffmpeg_demux.c logs for
+        # AV_PKT_FLAG_CORRUPT -- at WARNING, and only fatal under -xerror
+        # (which this reader no longer passes). Tolerated, not fatal.
+        ("[error @ 0000029f1c3b45a20] corrupt input packet in stream 0: "
+         "packet corrupt -845380487", False, None),
+        # A truncated download: decoder noise, then the fatal marker inside it.
+        # marker=None because the design does not fix WHICH of the fatal
+        # markers a multi-marker tail reports -- only that it reports one.
+        (TRUNCATED_TAIL, True, None),
+        # --- benign: corruption the decoder concealed and recovered from ----
+        ("[h264 @ 0000029f1c3b45a20] error while decoding MB 16 10, "
+         "bytestream 376", False, None),
+        ("[h264 @ 0000029f1c3b45a20] left block unavailable for requested "
+         "intra4x4 mode", False, None),
+        ("[h264 @ 0000029f1c3b45a20] Reference 3 >= 2", False, None),
+        (CONCEALED_TAIL, False, None),
+        (CORRUPT_BYTE_TAIL, False, None),
+        # FFmpeg's generic summary lines, alone, say nothing about the cause.
+        # ("Invalid NAL unit size" and "Invalid data found" both appear in
+        # files that decode to the end) -- they must not condemn a file.
+        ("[h264 @ 0000029f1c3b45a20] Invalid NAL unit size (2851 > 1024)", False, None),
+        ("[error @ 000001f4a1b2c3d0] Invalid data found when processing input",
+         False, None),
+        ("[mp4 @ 000001f4a1b2c3d0] Error splitting the input into NAL units.",
+         False, None),
+        # --- case-insensitive matching (see the note below) ----------------
+        ("[mp4 @ 000001f4a1b2c3d0] moov atom NOT found", True, "moov atom not found"),
+        ("[h264 @ 0000029f1c3b45a20] stream 0, offset 0x0: PARTIAL FILE", True,
+         "partial file"),
+        # --- nothing to go on ----------------------------------------------
+        ("", False, None),
+        ("   \n\t\n  ", False, None),
+    ],
+)
+def test_classify_decode_termination(tail, fatal, marker):
+    reason = classify_decode_termination(tail)
+    if not fatal:
+        assert reason is None, f"benign decode noise misread as fatal: {reason!r}"
+        return
+    assert isinstance(reason, str) and reason.strip(), (
+        "a fatal container error must produce a reason"
+    )
+    if marker is not None:
+        assert marker in reason, f"reason does not name the marker: {reason!r}"
+
+
+# ---------------------------------------------------------------------------
+# Short read on a clean exit is decided by the captured log
+# ---------------------------------------------------------------------------
+
+
+def test_short_read_with_fatal_stderr_raises(tmp_path, monkeypatch):
+    """exit 0 alone is not clean: a container error in the log is fatal.
+
+    Without -xerror FFmpeg reports a truncated file and still exits 0, so the
+    exit status on its own would have turned a half-downloaded clip into a
+    normal end of playback. The captured log is the only evidence left.
+    """
+    reader, _proc = _reader(
+        tmp_path,
+        monkeypatch,
+        stdout_bytes=b"\x01\x02",
+        returncode=0,
+        stderr_text=TRUNCATED_TAIL.encode(),
+    )
+    reason = classify_decode_termination(TRUNCATED_TAIL)
+    with pytest.raises(FFmpegDecodeError) as excinfo:
+        reader.read_frame()
+    message = str(excinfo.value)
+    assert reason in message, "the message must name why the stream really ended"
+    assert not re.search(r"exit status [1-9]\d*", message), (
+        f"FFmpeg exited 0 here, so the message must not claim a status: {message}"
+    )
+    reader.close()
+
+
+def test_a_fatal_marker_outside_the_log_tail_is_still_fatal(tmp_path, monkeypatch):
+    """Classification reads the WHOLE log, not just the 5-line tail.
+
+    A truncated download logs a burst of decoder noise after the fatal marker;
+    the marker must still be found even when it falls outside the tail that the
+    error message quotes.
+    """
+    noise = b"".join(
+        b"[h264 @ 0x1] error while decoding MB %d 0\n" % i for i in range(20)
+    )
+    reader, _proc = _reader(
+        tmp_path, monkeypatch, stdout_bytes=b"\x01\x02", returncode=0,
+        stderr_text=b"[mp4 @ 0x1] moov atom not found\n" + noise,
+    )
+    with pytest.raises(FFmpegDecodeError) as excinfo:
+        reader.read_frame()
+    assert "moov atom not found" in str(excinfo.value)
+    reader.close()
+
+
+def test_short_read_with_concealed_corruption_is_clean_eof(tmp_path, monkeypatch):
+    """One flipped byte is concealment, not a container failure: keep playing.
+
+    This is the case -xerror used to break: the decoder logs a decode error,
+    recovers from it, still emits every frame and exits 0.
+    """
+    reader, _proc = _reader(
+        tmp_path,
+        monkeypatch,
+        stdout_bytes=FRAME + b"\x01",
+        returncode=0,
+        stderr_text=CORRUPT_BYTE_TAIL.encode(),
+    )
+    assert reader.read_frame() == FRAME
+    assert reader.read_frame() is None
+    reader.close()
+
+
+def test_short_read_with_nonzero_exit_reports_the_status_first(tmp_path, monkeypatch):
+    """A non-zero exit outranks classification: the status is still the story."""
+    reader, _proc = _reader(
+        tmp_path,
+        monkeypatch,
+        stdout_bytes=b"\x01\x02",
+        returncode=7,
+        stderr_text=TRUNCATED_TAIL.encode(),
+    )
+    with pytest.raises(FFmpegDecodeError) as excinfo:
+        reader.read_frame()
+    message = str(excinfo.value)
+    assert "exit status 7" in message
+    assert "Invalid NAL unit size" in message  # FFmpeg's own log is still quoted
+    reader.close()
+
+
+def test_full_frames_are_returned_even_with_fatal_markers_logged(tmp_path, monkeypatch):
+    """Classification runs on the outcome, never mid-stream.
+
+    FFmpeg may have logged a container error for a file it is nonetheless
+    still decoding; a fatal marker in the log must not cut playback short
+    while whole frames keep arriving.
+    """
+    reader, _proc = _reader(
+        tmp_path,
+        monkeypatch,
+        stdout_bytes=FRAME * 2,
+        returncode=0,
+        stderr_text=TRUNCATED_TAIL.encode(),
+    )
+    assert reader.read_frame() == FRAME
+    assert reader.read_frame() == FRAME
+    reader.close()  # no third read: that short read IS classified, and is fatal
+
+
+def test_short_read_after_a_wait_timeout_is_classified(tmp_path, monkeypatch):
+    """A decode still running when the pipe closes is decided by the log.
+
+    wait() timing out is not a status, so this is the path a stalled or very
+    slow truncated download actually takes -- it must not slip through as EOF.
+    """
+    reader, _proc = _reader(
+        tmp_path,
+        monkeypatch,
+        stdout_bytes=b"\x01\x02",
+        returncode=0,
+        hang=True,
+        stderr_text=TRUNCATED_TAIL.encode(),
+    )
+    with pytest.raises(FFmpegDecodeError) as excinfo:
+        reader.read_frame()
+    assert classify_decode_termination(TRUNCATED_TAIL) in str(excinfo.value)
+    reader.close()
+
+
+def test_short_read_after_a_wait_timeout_with_benign_log_is_eof(tmp_path, monkeypatch):
+    """The timeout path stays a clean EOF when the log is only decoder noise."""
+    reader, _proc = _reader(
+        tmp_path,
+        monkeypatch,
+        stdout_bytes=b"\x01\x02",
+        returncode=0,
+        hang=True,
+        stderr_text=CORRUPT_BYTE_TAIL.encode(),
+    )
+    assert reader.read_frame() is None
+    reader.close()
+
+
+def test_stderr_sink_failure_raises_decode_error(tmp_path, monkeypatch):
+    """The stderr sink is now created inside the same try as the spawn.
+
+    Its own failure must be reported like any other, not come out of the
+    handler as an UnboundLocalError from closing a file that was never made.
+    """
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"x")
+
+    def _no_sink():
+        raise OSError(145, "There is not enough space on the disk.")
+
+    monkeypatch.setattr("src.video.tempfile.TemporaryFile", _no_sink)
+    reader = FFmpegFrameReader(str(video), 4, 4, ffmpeg="ffmpeg")
+    with pytest.raises(FFmpegDecodeError) as excinfo:
+        reader.open()
+    assert "not enough space" in str(excinfo.value)
+    reader.close()
+
+
+# ---------------------------------------------------------------------------
+# The one test that shells out to a real FFmpeg (skipped when absent)
+# ---------------------------------------------------------------------------
+
+FFMPEG = shutil.which("ffmpeg")
+
+
+def _make_clip(path, ffmpeg):
+    """Write a 10-frame clip with FFmpeg's own built-in test source."""
+    try:
+        subprocess.run(
+            [ffmpeg, "-v", "error", "-y",
+             "-f", "lavfi", "-i", "testsrc=size=32x32:rate=10:duration=1",
+             "-c:v", "mpeg4", str(path)],  # mpeg4: built into every build
+            check=True, capture_output=True, timeout=10,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        pytest.skip(f"this FFmpeg build cannot encode the test clip: {exc}")
+
+
+def _decode_all(path, ffmpeg, width=16, height=16):
+    """Drain a reader to EOF, returning the frames it produced."""
+    reader = FFmpegFrameReader(str(path), width, height, ffmpeg=ffmpeg)
+    frames = []
+    reader.open()
+    try:
+        for _ in range(300):  # bounded: a reader that never reports EOF must
+            frame = reader.read_frame()  # not hang the suite
+            if frame is None:
+                return frames
+            frames.append(frame)
+    finally:
+        reader.close()
+    raise AssertionError("the reader never reported end of stream")
+
+
+@pytest.mark.skipif(FFMPEG is None, reason="ffmpeg is not installed")
+def test_one_flipped_payload_byte_still_plays_every_frame(tmp_path):
+    """A file with one corrupt byte must still play through.
+
+    This is the whole point of dropping -xerror: on this machine -xerror makes
+    FFmpeg quit after 4 of 10 frames with a non-zero status, while without it
+    FFmpeg conceals the damage, emits all 10 and exits 0 -- so neither the
+    exit status nor the log may be allowed to call that a failed decode.
+    """
+    clean = tmp_path / "clean.mp4"
+    _make_clip(clean, FFMPEG)
+
+    data = bytearray(clean.read_bytes())
+    box = data.find(b"mdat")
+    if box < 0:
+        pytest.skip("no mdat box in the generated clip")
+    payload = box + 8  # past the box's 4-byte type and 4-byte size
+    data[payload + (len(data) - payload) // 2] ^= 0xFF  # one byte, mid-payload
+    corrupt = tmp_path / "corrupt.mp4"
+    corrupt.write_bytes(bytes(data))
+
+    intact = _decode_all(clean, FFMPEG)
+    assert len(intact) >= 5, "the clip did not decode; this test proves nothing"
+
+    # Must not raise: a raise here IS the regression -xerror reintroduced.
+    frames = _decode_all(corrupt, FFMPEG)
+    assert all(len(f) == 16 * 16 * 3 for f in frames)
+    # Concealment can cost a frame on some builds, so allow one; losing the
+    # rest of the clip would mean the corruption actually truncated it.
+    assert len(frames) >= max(1, len(intact) - 1)
