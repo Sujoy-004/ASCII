@@ -1,7 +1,8 @@
 # Reproducible quality gate for rgb-ascii-renderer.
 #
-# The test suite is fully hermetic: FFmpeg/FFplay/FFprobe are faked, so no
-# external binaries are installed here. The renderer itself is standard-library
+# The test suite is hermetic: FFmpeg/FFplay/FFprobe are faked, so no external
+# binaries are installed here. One decoder-corruption test drives a real FFmpeg
+# and skips itself when it is absent. The renderer itself is standard-library
 # only, so `pip install -e ".[dev]"` pulls in the toolchain and nothing else.
 #
 # Matrix rationale: pyproject declares requires-python >= 3.10 with no upper

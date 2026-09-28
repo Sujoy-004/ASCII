@@ -74,6 +74,13 @@ option below is a tweak for a specific situation, not a setup step.
 - **Aspect-ratio preservation** — corrects for non-square terminal characters.
 - **Audio-master playback timing** — when FFplay exposes its media clock, video deadlines follow the audio-derived playback position; a monotonic fallback remains available.
 - **Real-time frame dropping** — stale frames are dropped to stay on track when the terminal can't keep up.
+- **Startup latency independent of clip length** — a constant-frame-rate source
+  starts on its own detected frame rate with no timestamp probe at all, and a
+  variable-rate source is paced by a streaming PTS probe that runs alongside
+  playback, so the wait for the first frame no longer scales with video length.
+- **Explicit decode failures** — a truncated or corrupt container aborts with
+  FFmpeg's own log quoted, while a single damaged frame the decoder conceals
+  and recovers from plays through to the end.
 - **Adaptive quality** (on by default) — when the pipeline can't hold its frame budget, optional work is shed in a fixed order (temporal smoothing first, then color) instead of dropping frames. It never changes frame timing, frame selection, or audio sync, so playback stays smooth and synchronized; only detail is reduced. Turn it off with `--no-adaptive` when you want byte-identical output regardless of machine speed.
 - **Optional temporal smoothing** blends displayed frames for a smoother look.
 - **Arbitrary local video paths** — relative, absolute, or with spaces; no copying needed.
@@ -219,9 +226,11 @@ python -m mypy          # type-check the package
 python -m ruff check .  # lint (rule scope documented in pyproject.toml)
 ```
 
-The test suite is fully hermetic — FFmpeg, FFplay and FFprobe are faked — so it
-runs anywhere Python does, and the same commands run in CI on Linux and Windows
-against Python 3.10 and 3.13.
+The test suite is hermetic — FFmpeg, FFplay and FFprobe are faked — so it runs
+anywhere Python does, and the same commands run in CI on Linux and Windows
+against Python 3.10 and 3.13. The one exception is a decoder-corruption test
+that drives a real FFmpeg; it skips itself when FFmpeg is not installed, which
+is the case in CI.
 
 ### Benchmark
 
@@ -233,8 +242,8 @@ processes and machines:
 python bench.py                                   # default grids
 python bench.py --sizes 160x48                    # pure steady state (src == grid)
 python bench.py --src 640x360                     # the terminal-resize path
-python bench.py --json base.json                  # save
-python bench.py --json base.json --baseline base.json   # before/after
+python bench.py --json bench_baseline.json                       # save
+python bench.py --json bench_baseline.json --baseline bench_baseline.json   # before/after
 ```
 
 The default source size (160×48) matches the largest default grid, so that row is
@@ -265,7 +274,12 @@ are documented here and in the install section rather than in
    `Y = 0.299R + 0.587G + 0.114B`.
 4. **RGB** becomes the ANSI **True Color** foreground:
    `ESC[38;2;R;G;Bm`.
-5. A **FrameClock** schedules presentation against source frame timestamps when FFprobe can provide them, with fixed-FPS deadlines as a fallback.
+5. A **FrameClock** schedules presentation by frame index. A source FFprobe
+   positively reports as constant-frame-rate paces on its own frame grid
+   immediately, with no timestamp enumeration at all; a variable-rate (or
+   undeterminable) source is paced against its real frame PTS values, delivered
+   by a streaming FFprobe probe that reads alongside playback instead of
+   delaying it. The wait for the first frame no longer grows with video length.
 6. **Stale frames are dropped** when playback falls behind the active media timeline.
 7. Optional **temporal smoothing** blends displayed frames.
 8. **FFplay** plays the source audio on a separate process and emits its current audio-master media position; video follows that clock when available.
@@ -280,7 +294,12 @@ are documented here and in the install section rather than in
 - **Luminance** — Rec. 601 weights favor green, matching human perception.
 - **ANSI True Color** — `\x1b[38;2;R;G;Bm` sets the foreground color; every
   pixel's color is carried into its character.
-- **Frame timing** — source frame PTS values drive media deadlines when available; fixed-FPS timing is the fallback. The wall-clock deadline remains derived from one monotonic playback start.
+- **Frame timing** — a constant-frame-rate source paces on its own detected
+  frame rate, so playback starts with no timestamp probe; a variable-rate
+  source is paced by its real frame PTS values as a streaming probe delivers
+  them. Timing from `RGB_ASCII_FPS` (or the default rate) is the fallback
+  whenever the source's own rate cannot be trusted. The wall-clock deadline
+  remains derived from one monotonic playback start.
 - **Frame dropping** — an intentional real-time tradeoff under load, keeping
   playback near the current timeline instead of slowing down.
 - **Process separation** — FFmpeg (video), FFplay (audio), and Python are
@@ -371,9 +390,9 @@ Not yet done, and genuinely open:
   environment variables used today.
 - ASCII image-renderer mode and webcam/stream input.
 
-Already implemented, and previously listed here: source-frame-timestamp
-synchronization with automatic FPS detection (see How It Works, step 5) and
-adaptive quality.
+Already implemented, and previously listed here: automatic FPS detection with a
+source-frame-timestamp clock (CFR sources and the streaming VFR probe — see How
+It Works, step 5) and adaptive quality.
 
 ---
 

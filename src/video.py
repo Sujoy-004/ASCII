@@ -47,6 +47,46 @@ def _find_ffmpeg() -> str:
     return path
 
 
+# FFmpeg exits 0 after a fatal container failure too (e.g. a file truncated in
+# the middle of a frame), so the exit status alone cannot tell a clean end of
+# stream from a decode that died early. These markers name container/stream-
+# level failures -- the file itself is unusable. They are deliberately and
+# conservatively few: most lines FFmpeg logs while decoding damaged input
+# (like "error while decoding MB ...") name a frame the decoder concealed and
+# recovered from, and a real movie can legitimately log plenty of those while
+# still playing to the end. Anything not in this table reads as a clean EOF.
+# "corrupt input packet" is deliberately absent: FFmpeg logs it at WARNING for
+# damaged packets it demuxes around and continues, and it only becomes fatal
+# under -xerror, which this reader no longer passes anyway.
+_FATAL_TERMINATION_MARKERS: tuple[tuple[str, str], ...] = (
+    ("partial file", "the file ends mid-packet (truncated stream)"),
+    ("moov atom not found", "the container index is missing (truncated or not an MP4)"),
+    ("error opening input", "the input could not be opened"),
+)
+
+
+def classify_decode_termination(log_tail: str) -> str | None:
+    """Return a fatal reason for a short read, or None for a normal EOF.
+
+    Consulted by ``read_frame`` when a short read ended a stream whose exit
+    status was 0 (or could not be reaped, and therefore reads as 0). A
+    container-level diagnosis means the stream itself ended early and is an
+    error; decoder noise means a concealed frame was dropped and playback
+    should carry on.
+
+    Conservative by construction: an empty or unrecognized log always reads as
+    a clean end of stream. Matching is case-insensitive, so a future build
+    re-casing a token does not change the outcome.
+    """
+    if not log_tail:
+        return None
+    for line in log_tail.lower().splitlines():
+        for marker, reason in _FATAL_TERMINATION_MARKERS:
+            if marker in line:
+                return f"{reason}: {line.strip()}"
+    return None
+
+
 class FFmpegFrameReader:
     """Reads RGB24 frames from an FFmpeg subprocess."""
 
@@ -77,11 +117,6 @@ class FFmpegFrameReader:
 
         cmd = [
             self.ffmpeg,
-            # -xerror: FFmpeg otherwise logs a decode error and still exits 0
-            # (e.g. a truncated file), which would hide a failed decode behind
-            # a normal end of stream. With it, any decode error fails the
-            # process so read_frame() can tell failure from EOF.
-            "-xerror",
             "-i", self.video_path,
             # -fps_mode passthrough: without it FFmpeg resamples the output to a
             # constant frame rate, duplicating frames to fill a variable-rate
@@ -107,17 +142,19 @@ class FFmpegFrameReader:
         # so keep them (errors only) in a temp file rather than a pipe: an
         # undrained pipe would eventually block FFmpeg mid-decode, while a temp
         # file grows freely and is read only once a failure needs explaining.
-        stderr_file = tempfile.TemporaryFile()
+        stderr_file: Any = None
         # read frames from stdout as binary.
         self.launched_at = time.perf_counter()
         try:
+            stderr_file = tempfile.TemporaryFile()
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=stderr_file,
             )
         except OSError as exc:
-            stderr_file.close()
+            if stderr_file is not None:
+                stderr_file.close()
             raise FFmpegDecodeError(
                 f"FFmpeg could not be started: {exc}\n"
                 f"  Verify the executable with:  {self.ffmpeg} -version"
@@ -131,9 +168,11 @@ class FFmpegFrameReader:
         Robustly handles partial reads from the pipe: loops until the full
         frame_size bytes are collected or the stream ends.
 
-        A short read is a normal EOF only when FFmpeg itself exited cleanly. A
-        non-zero exit is a decoder failure and raises FFmpegDecodeError, so a
-        corrupt/unsupported input can never be reported as successful playback.
+        A short read is a normal EOF only when FFmpeg exited cleanly and its
+        captured log shows no fatal container error. A non-zero exit, or a zero
+        exit whose log names a fatal container termination, raises
+        FFmpegDecodeError, so a corrupt/unsupported input can never be reported
+        as successful playback.
         """
         proc = self._process
         if proc is None or proc.stdout is None:
@@ -142,13 +181,20 @@ class FFmpegFrameReader:
         if len(data) == self.frame_size:
             return data
         # The pipe ended before a whole frame: either a clean end of stream or
-        # FFmpeg dying mid-decode. Only the exit status tells the two apart.
+        # FFmpeg dying mid-decode. Only the exit status and the log tell them
+        # apart -- FFmpeg exits 0 on fatal container failures too.
         try:
             code = proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
             code = 0  # stdout is closed, so no further frame can ever arrive
         if code != 0:
             raise FFmpegDecodeError(self._failure_message(code))
+        reason = classify_decode_termination(self._stderr_text())
+        if reason is not None:
+            raise FFmpegDecodeError(
+                f"FFmpeg ended the stream in {self.video_path} prematurely: "
+                f"{reason}\n{self._stderr_tail()}"
+            )
         return None
 
     def _failure_message(self, code: int) -> str:
@@ -159,17 +205,20 @@ class FFmpegFrameReader:
         detail = self._stderr_tail()
         return f"{message}\nFFmpeg reported:\n{detail}" if detail else message
 
-    def _stderr_tail(self, lines: int = 5) -> str:
-        """Return the tail of FFmpeg's captured log, or '' if unavailable."""
+    def _stderr_text(self) -> str:
+        """Return FFmpeg's entire captured log, or '' if unavailable."""
         stream = self._stderr_file
         if stream is None:
             return ""
         try:
             stream.seek(0)
-            text = stream.read().decode(errors="replace")
+            return stream.read().decode(errors="replace")
         except OSError:
             return ""
-        return "\n".join(text.strip().splitlines()[-lines:])
+
+    def _stderr_tail(self, lines: int = 5) -> str:
+        """Return the tail of FFmpeg's captured log, or '' if unavailable."""
+        return "\n".join(self._stderr_text().strip().splitlines()[-lines:])
 
     @staticmethod
     def _read_exact(stream, length: int) -> bytes:

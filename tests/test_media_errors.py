@@ -104,7 +104,9 @@ def _run_with(tmp_path, monkeypatch, *, stdout_bytes, returncode, stderr_text=b"
     monkeypatch.setattr("src.main.TerminalRenderer", FakeTerminal)
     monkeypatch.setattr("src.main.probe_media_duration", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_size", lambda *a, **k: None)
-    monkeypatch.setattr("src.main.probe_video_timestamps", lambda *a, **k: None)
+    # Keep the CFR/VFR routing hermetic too, so this stays deterministic even
+    # if RGB_ASCII_FPS stops short-circuiting the probe decision.
+    monkeypatch.setattr("src.main.probe_video_rate", lambda *a, **k: (None, False))
     monkeypatch.setenv("RGB_ASCII_NO_AUDIO", "1")  # keep the CLI path audio-free
     monkeypatch.setenv("RGB_ASCII_FPS", "1000")
     return proc, main([str(video)])
@@ -149,6 +151,23 @@ def test_valid_video_still_exits_zero(tmp_path, monkeypatch):
     assert code == 0
     assert proc.stdout_closed
     assert proc.stderr_closed
+
+
+def test_truncated_file_with_zero_exit_still_exits_non_zero(tmp_path, monkeypatch):
+    """FFmpeg exits 0 on a truncated container; the log is the only evidence.
+
+    The exit status alone would call a half-downloaded clip a successful
+    playback; the classifier on the captured log is what turns it into an
+    error end to end.
+    """
+    _proc, code = _run_with(
+        tmp_path,
+        monkeypatch,
+        stdout_bytes=b"",
+        returncode=0,
+        stderr_text=b"[h264 @ 0x1] stream 0, offset 0x12f87: partial file\n",
+    )
+    assert code == 1
 
 
 # ---------------------------------------------------------------------------

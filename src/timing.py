@@ -38,12 +38,25 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Protocol
 
 MediaClockFn = Callable[[], float | None]
 
 ClockFn = Callable[[], float]
 SleepFn = Callable[[float], None]
+
+
+class TimestampSource(Protocol):
+    """A frame-index-to-media-time answerer the clock can pace against.
+
+    ``TimestampStream`` (src.sync) is the streaming implementation; the
+    Protocol keeps FrameClock free of a dependency on it.
+    """
+
+    def at(self, frame_index: int) -> float:
+        """Return the canonical media time for ``frame_index`` without blocking.
+        """
+        ...
 
 # Authoritative clock sources, reported verbatim in debug output.
 MONOTONIC = "monotonic"
@@ -77,7 +90,7 @@ class FrameClock:
 
     def __init__(
         self,
-        target_fps: int,
+        target_fps: float,
         now: ClockFn | None = None,
         sleep_fn: SleepFn | None = None,
         late_threshold: float = 0.002,
@@ -97,6 +110,7 @@ class FrameClock:
         self._last_presented: float | None = None
         self._media_clock: MediaClockFn | None = None
         self._media_timestamps: tuple[float, ...] | None = None
+        self._timestamp_stream: TimestampSource | None = None
         # Authoritative clock source, updated on every transition. This is the
         # runtime truth; debug output reports it rather than a separate guess.
         self.clock_source: str = MONOTONIC
@@ -130,6 +144,7 @@ class FrameClock:
         self._start_time = start_time if start_time is not None else self._now()
         self._media_clock = None
         self._media_timestamps = None
+        self._timestamp_stream = None
         self.clock_source = MONOTONIC
         self._last_media_time = None
         self._last_media_time_at = None
@@ -220,11 +235,25 @@ class FrameClock:
         """Use source frame presentation timestamps when available."""
         self._media_timestamps = timestamps
 
+    def set_timestamp_stream(self, source: TimestampSource | None) -> None:
+        """Pace against a lazy timestamp source instead of a static tuple.
+
+        ``source.at`` answers the same three-branch model as
+        ``target_media_time``, so a clock with a stream schedules frames exactly
+        as it would with a trusted tuple -- only *when* the values exist
+        differs, never what they mean. A fully probed tuple
+        (``set_media_timestamps``) still takes precedence when both are set, so
+        the tuple path is byte-for-byte unchanged.
+        """
+        self._timestamp_stream = source
+
     def target_media_time(self, frame_index: int) -> float:
         """Return the canonical media presentation time for a frame index.
 
         This is the single frame-index-to-media-time path, and it is
-        non-decreasing in ``frame_index``:
+        non-decreasing in ``frame_index``. The "timeline in force" is a fully
+        probed tuple when one is set, otherwise the lazy ``TimestampSource``
+        (applied to the prefix read so far), otherwise the fixed-FPS grid:
 
         - ``0 <= frame_index < len(timestamps)``: the source's own normalized
           presentation timestamp, so a variable-rate source keeps its frame
@@ -252,6 +281,9 @@ class FrameClock:
         if timestamps is not None and frame_index >= len(timestamps) >= 2:
             gap = timestamps[-1] - timestamps[-2]
             return timestamps[-1] + (frame_index - len(timestamps) + 1) * gap
+        stream = self._timestamp_stream
+        if stream is not None:
+            return stream.at(frame_index)
         return frame_index * self.frame_duration
 
     def deadline(self, frame_index: int) -> float:

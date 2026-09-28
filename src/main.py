@@ -31,10 +31,11 @@ from src.smoothing import TemporalSmoother
 from src.sync import (
     AudioStatus,
     PlaybackTimeline,
+    TimestampStream,
     audio_completion_timeout,
     probe_media_duration,
+    probe_video_rate,
     probe_video_size,
-    probe_video_timestamps,
 )
 from src.terminal import TerminalRenderer
 from src.timing import FrameClock
@@ -59,7 +60,7 @@ environment variables (all optional; an explicit flag always wins):
   RGB_ASCII_NO_COLOR      1 for monochrome glyphs only
   RGB_ASCII_NO_AUDIO      1 to skip the audio track
   RGB_ASCII_SMOOTHING     blend factor, 0.0-1.0 (0 disables)
-  RGB_ASCII_FPS           fixed-FPS fallback when the source has no timestamps
+  RGB_ASCII_FPS           frame rate; overrides the source's own rate
   RGB_ASCII_PRESET        character ramp: default, dense, simple or blocks
   RGB_ASCII_CHARS         explicit glyph ramp, brightest character last
   RGB_ASCII_DEBUG         1 for a stderr report of timing and adaptive decisions
@@ -323,6 +324,7 @@ def run(
     media_duration: float | None = None,
     video_aspect: float | None = None,
     first_frame: bytes | None = None,
+    timestamp_stream: TimestampStream | None = None,
 ) -> int:
     """Run the continuous playback loop, cleaning up on EOF and Ctrl+C.
 
@@ -388,6 +390,7 @@ def run(
         # this read is an ordinary Ctrl+C, so it is handled like any other.
         selector.prime()
         clock.start()
+        clock.set_timestamp_stream(timestamp_stream)
         clock.set_media_timestamps(getattr(reader, "media_timestamps", None))
         if audio is not None:
             clock.set_media_clock(audio.media_position)
@@ -488,6 +491,10 @@ def run(
     except KeyboardInterrupt:
         interrupted = True
     finally:
+        if timestamp_stream is not None:
+            # The probe is a long-lived subprocess; it must never outlive the
+            # playback loop it feeds. Idempotent and non-blocking.
+            timestamp_stream.close()
         if timeline is not None:
             timeline.video_eof_at = clock.current_time()
             timeline.frame_count = selector.stats.rendered
@@ -573,9 +580,9 @@ def main(argv: list[str] | None = None) -> int:
     terminal = None
     audio = None
     timeline = None
+    timestamp_probe: TimestampStream | None = None
     try:
         renderer = RGBAsciiRenderer(config)
-        clock = FrameClock(config.fps)
         terminal = TerminalRenderer(config)
         terminal.init()
 
@@ -585,9 +592,31 @@ def main(argv: list[str] | None = None) -> int:
         media_duration = probe_media_duration(args.video)
         src_size = probe_video_size(args.video)
         video_aspect = (src_size[0] / src_size[1]) if src_size else None
-        video_timestamps = probe_video_timestamps(
-            args.video, duration=media_duration
-        )
+
+        # A source positively detected as constant-frame-rate paces on the
+        # fixed grid immediately -- no timestamp enumeration at all. A
+        # variable-rate (or undeterminable) source gets a streaming timestamp
+        # probe instead: it decodes the PTS timeline in the background while
+        # playback begins on the values read so far, so the time to the first
+        # frame no longer scales with the length of the video. The explicit
+        # RGB_ASCII_FPS env override beats source metadata, matching the
+        # documented fallback semantics.
+        pacing_fps: float
+        if _env_int("RGB_ASCII_FPS") is not None:
+            pacing_fps = float(config.fps)
+        else:
+            cfr_rate, is_cfr = probe_video_rate(args.video)
+            if is_cfr and cfr_rate is not None:
+                pacing_fps = cfr_rate
+            else:
+                pacing_fps = float(config.fps)
+                timestamp_probe = TimestampStream(
+                    args.video, frame_duration=1.0 / pacing_fps
+                )
+                # Launched before the decoder warms up, so its first rows are
+                # usually ready by the time the first frame has been read.
+                timestamp_probe.start()
+        clock = FrameClock(pacing_fps)
 
         width, height = terminal.output_size(video_aspect)
         if config.debug:
@@ -600,9 +629,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Preset:           {config.preset or '(default/custom)'}", file=sys.stderr)
             print(f"Gradient:         {len(config.chars)} chars", file=sys.stderr)
             print(f"Color:            {'on' if config.enable_color else 'off'}", file=sys.stderr)
-            print(f"Target FPS:       {config.fps}", file=sys.stderr)
+            print(f"Target FPS:       {pacing_fps:g}", file=sys.stderr)
             print(
-                f"Frame timestamps:  {'source PTS' if video_timestamps else 'fixed FPS fallback'}",
+                f"Frame timestamps:  "
+                f"{'streaming source PTS' if timestamp_probe is not None else 'fixed FPS (CFR metadata)'}",
                 file=sys.stderr,
             )
 
@@ -644,7 +674,6 @@ def main(argv: list[str] | None = None) -> int:
             args.video, width, height * 2 if config.blocks else height,
             fps=config.fps,
         )
-        reader.media_timestamps = video_timestamps
         reader.open()
         timeline.video_launched_at = reader.launched_at
 
@@ -652,6 +681,14 @@ def main(argv: list[str] | None = None) -> int:
         # timeline exists, so FFmpeg's spawn/filter/decode latency is not billed
         # to the clock as playback lateness.
         first_frame = reader.read_frame()
+
+        if timestamp_probe is not None:
+            # The probe started before the decoder warmed up, so by now it has
+            # usually decoded several frames' worth of timestamps. This only
+            # bounds the tail: if it is still behind, playback starts on the
+            # grid and adopts the stream's values as they arrive. Early return
+            # is the norm, so the cap costs nothing in the common case.
+            timestamp_probe.wait_ready(min_values=2, timeout=0.25)
 
         if (
             audio is not None
@@ -677,6 +714,7 @@ def main(argv: list[str] | None = None) -> int:
             reader, renderer, terminal, clock, config,
             audio, timeline, media_duration=media_duration,
             video_aspect=video_aspect, first_frame=first_frame,
+            timestamp_stream=timestamp_probe,
         )
     except (
         FFmpegNotFoundError,
@@ -694,6 +732,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2 if isinstance(exc, ValueError) else 1
     finally:
+        if timestamp_probe is not None:
+            timestamp_probe.close()
         if reader is not None:
             reader.close()
         if audio is not None:
