@@ -581,6 +581,10 @@ def main(argv: list[str] | None = None) -> int:
     audio = None
     timeline = None
     timestamp_probe: TimestampStream | None = None
+    # True only once a probe process and its reader thread are actually
+    # running; a stream whose start() failed never publishes a value, so it
+    # must not be reported (or waited on) as a streaming timeline.
+    probe_started = False
     try:
         renderer = RGBAsciiRenderer(config)
         terminal = TerminalRenderer(config)
@@ -615,7 +619,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 # Launched before the decoder warms up, so its first rows are
                 # usually ready by the time the first frame has been read.
-                timestamp_probe.start()
+                # start() is False when FFprobe is missing or unlaunchable; the
+                # clock then simply stays on the fixed grid.
+                probe_started = timestamp_probe.start()
         clock = FrameClock(pacing_fps)
 
         width, height = terminal.output_size(video_aspect)
@@ -630,9 +636,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Gradient:         {len(config.chars)} chars", file=sys.stderr)
             print(f"Color:            {'on' if config.enable_color else 'off'}", file=sys.stderr)
             print(f"Target FPS:       {pacing_fps:g}", file=sys.stderr)
+            if probe_started:
+                source_timeline = "streaming source PTS"
+            elif timestamp_probe is not None:
+                source_timeline = "probe unavailable (fixed FPS fallback)"
+            else:
+                source_timeline = "fixed FPS (CFR metadata)"
             print(
-                f"Frame timestamps:  "
-                f"{'streaming source PTS' if timestamp_probe is not None else 'fixed FPS (CFR metadata)'}",
+                f"Frame timestamps:  {source_timeline}",
                 file=sys.stderr,
             )
 
@@ -682,7 +693,7 @@ def main(argv: list[str] | None = None) -> int:
         # to the clock as playback lateness.
         first_frame = reader.read_frame()
 
-        if timestamp_probe is not None:
+        if probe_started and timestamp_probe is not None:
             # The probe started before the decoder warmed up, so by now it has
             # usually decoded several frames' worth of timestamps. This only
             # bounds the tail: if it is still behind, playback starts on the
