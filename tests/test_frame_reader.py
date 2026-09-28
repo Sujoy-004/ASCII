@@ -304,6 +304,36 @@ def test_close_survives_terminate_error(tmp_path, monkeypatch):
     assert proc.stderr_file.closed
 
 
+def test_open_twice_terminates_the_first_process(tmp_path, monkeypatch):
+    """A second open() must not orphan the first FFmpeg process.
+
+    Without the guard, the first process keeps running with its stdout pipe
+    and log file open but out of reach of close(), so it is never reaped.
+    """
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"x")
+    first = FakeFFmpegProc(alive=True)
+    second = FakeFFmpegProc(alive=True)
+
+    calls = iter([first, second])
+
+    def _popen(cmd, **kwargs):
+        return next(calls).attach(kwargs["stderr"])
+
+    monkeypatch.setattr("src.video.subprocess.Popen", _popen)
+    reader = FFmpegFrameReader(str(video), 4, 4, ffmpeg="ffmpeg")
+    reader.open()
+    reader.open()
+
+    assert first.terminated == 1
+    assert first.reaped >= 1
+    assert first.stdout.closed
+    assert first.stderr_file.closed
+    assert reader._process is second
+    reader.close()
+    assert second.terminated == 1
+
+
 # ---------------------------------------------------------------------------
 # Decode strictness: what a short read on a clean exit actually means
 # ---------------------------------------------------------------------------
@@ -561,7 +591,7 @@ def _make_clip(path, ffmpeg):
              "-c:v", "mpeg4", str(path)],  # mpeg4: built into every build
             check=True, capture_output=True, timeout=10,
         )
-    except (OSError, subprocess.CalledProcessError) as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         pytest.skip(f"this FFmpeg build cannot encode the test clip: {exc}")
 
 
@@ -597,17 +627,24 @@ def test_one_flipped_payload_byte_still_plays_every_frame(tmp_path):
     box = data.find(b"mdat")
     if box < 0:
         pytest.skip("no mdat box in the generated clip")
-    payload = box + 8  # past the box's 4-byte type and 4-byte size
-    data[payload + (len(data) - payload) // 2] ^= 0xFF  # one byte, mid-payload
+    # A box is [4-byte size][4-byte type][payload]; find() returns the TYPE
+    # field, so the size sits four bytes earlier and the payload starts four
+    # bytes later. Assuming the payload runs to EOF is invalid because with a
+    # default (non-faststart) layout the moov box follows mdat -- read the size
+    # field so the flip lands inside the mdat payload, not in moov.
+    size = int.from_bytes(data[box - 4:box], "big")
+    if size <= 8 or box - 4 + size > len(data):
+        pytest.skip("unexpected mdat box layout in the generated clip")
+    data[box + 4 + (size - 8) // 2] ^= 0xFF
     corrupt = tmp_path / "corrupt.mp4"
     corrupt.write_bytes(bytes(data))
 
     intact = _decode_all(clean, FFMPEG)
-    assert len(intact) >= 5, "the clip did not decode; this test proves nothing"
+    assert len(intact) == 10, "the clip did not decode; this test proves nothing"
 
     # Must not raise: a raise here IS the regression -xerror reintroduced.
     frames = _decode_all(corrupt, FFMPEG)
-    assert all(len(f) == 16 * 16 * 3 for f in frames)
+    assert frames and all(len(f) == 16 * 16 * 3 for f in frames)
     # Concealment can cost a frame on some builds, so allow one; losing the
     # rest of the clip would mean the corruption actually truncated it.
-    assert len(frames) >= max(1, len(intact) - 1)
+    assert len(frames) >= len(intact) - 1

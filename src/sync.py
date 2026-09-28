@@ -423,6 +423,15 @@ class TimestampStream:
 
     ``close()`` is idempotent and never raises, so it can run from ``finally``
     blocks both inside and outside the playback loop.
+
+    Unlike the legacy ``_trusted_timeline`` guard (used by
+    ``probe_video_timestamps``), the stream
+    never compares a short prefix against the media duration: a truncated
+    source ends playback at the decoder's own EOF, which lands exactly at the
+    prefix's last index, so the extrapolation that the guard protects is
+    unreachable. A duration-guarded equivalent would only freeze the stream
+    onto its fixed-FPS fallback, which paces a variable-rate source far worse
+    (measured ~3x the mean error) than trusting the local cadence.
     """
 
     def __init__(

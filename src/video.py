@@ -114,6 +114,11 @@ class FFmpegFrameReader:
         """Start the FFmpeg process producing RGB24 frames on stdout."""
         if not os.path.isfile(self.video_path):
             raise FileNotFoundError(f"Video not found: {self.video_path}")
+        if self._process is not None:
+            # A second open() would orphan the first process: it keeps running
+            # with its stdout pipe and log file open but out of reach of
+            # close(). Reset first so a re-open reuses this reader cleanly.
+            self.close()
 
         cmd = [
             self.ffmpeg,

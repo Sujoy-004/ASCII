@@ -426,7 +426,7 @@ def test_run_paces_to_a_wired_timestamp_stream():
     assert proc.terminated == 1
 
 
-def test_main_vfr_path_launches_and_closes_the_streaming_probe(tmp_path, monkeypatch):
+def test_main_vfr_path_launches_and_closes_the_streaming_probe(tmp_path, monkeypatch, capsys):
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"not really a video")
 
@@ -467,10 +467,60 @@ def test_main_vfr_path_launches_and_closes_the_streaming_probe(tmp_path, monkeyp
     monkeypatch.setattr("src.main.probe_video_rate", lambda *a: (None, False))
     monkeypatch.delenv("RGB_ASCII_FPS", raising=False)
     monkeypatch.setenv("RGB_ASCII_NO_AUDIO", "1")
+    monkeypatch.setenv("RGB_ASCII_DEBUG", "1")
 
     assert main([str(video)]) == 0
     # The stream was launched for the VFR path and closed on the way out.
     assert timestamp_proc.terminated == 1
+    # The debug label reports the streaming timeline truthfully.
+    assert "streaming source PTS" in capsys.readouterr().err
+
+
+def test_main_vfr_path_label_degrades_when_the_probe_fails(tmp_path, monkeypatch, capsys):
+    """A probe that cannot launch must be reported as unavailable.
+
+    Before this guard the label read "streaming source PTS" even though the
+    probe never started, so the clock ran on the fixed grid while the log
+    claimed otherwise.
+    """
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"not really a video")
+
+    class FakeReaderProc:
+        def __init__(self, cmd, **kwargs):
+            self.stdout = io.BytesIO(FRAME * 2)
+            self.stderr = kwargs["stderr"]
+
+        def poll(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+    def popen_router(cmd, **kwargs):
+        if cmd[0] == "ffmpeg":
+            return FakeReaderProc(cmd, **kwargs)
+        raise OSError("ffprobe missing")
+
+    monkeypatch.setattr("subprocess.Popen", popen_router)
+    monkeypatch.setattr("src.video.shutil.which", lambda name: name)
+    monkeypatch.setattr("src.sync.shutil.which", lambda name: name)
+    monkeypatch.setattr("src.main.TerminalRenderer", FakeTerminal)
+    monkeypatch.setattr("src.main.probe_media_duration", lambda *a, **k: None)
+    monkeypatch.setattr("src.main.probe_video_size", lambda *a, **k: None)
+    monkeypatch.setattr("src.main.probe_video_rate", lambda *a: (None, False))
+    monkeypatch.delenv("RGB_ASCII_FPS", raising=False)
+    monkeypatch.setenv("RGB_ASCII_NO_AUDIO", "1")
+    monkeypatch.setenv("RGB_ASCII_DEBUG", "1")
+
+    assert main([str(video)]) == 0
+    assert "probe unavailable (fixed FPS fallback)" in capsys.readouterr().err
 
 
 def test_main_cfr_path_does_not_launch_a_probe(tmp_path, monkeypatch, capsys):
