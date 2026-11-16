@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 01
 current_phase_name: Codebase Modernization & Core Engine Extraction
-status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-11-16T08:44:33.472Z"
+status: verifying
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-11-16T09:27:52.620Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 01 execution started
-state_head: 5962752e3e5660decf94a159aa05d4b6636d55b0
+state_head: 9f4a5c8a7ff0241b553a645eddd36b8444d25afe
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 Phase: 01 (Codebase Modernization & Core Engine Extraction) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-16 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 22 min | 2 tasks | 5 files |
+| Phase 01 P02 | 9 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 01]: Facade exports 36 symbols (plan prose said 30; enumeration is authoritative) — Plan action enumerates 36 names matching research Pattern 1 and the artifacts list
 - [Phase 01]: Headless CLI grid: 80 columns, aspect-derived rows; DEFAULT_VIDEO_ASPECT moved to main.py — Reuses retired terminal sizing math without a viewport; keeps zero-dependency constraint
 - [Phase 01]: git.allow_default_branch_commits=true set for sequential main-tree dispatch — Sanctioned #3819 override; branching_strategy=none commits directly to main per project config
+- [Phase 01]: Adapted not removed the 4 TerminalRenderer monkeypatches: pinned src.main._headless_output_size to (2,2) so main()-level tests still exercise the real render loop through the real _StdoutSink under capsys
+- [Phase 01]: FakeTerminal fakes kept as duck-typed run() sinks; test_cleanup/test_playback audited with no edits needed (no cursor-escape or ANSI-clear assertions existed to prune)
+- [Phase 01]: Task 2 was verification-only with no commit: pytest 387 passed, mypy Success, ruff All checks passed, pyproject.toml audited accurate with zero metadata churn
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T08:44:33.422Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-11-16T09:27:52.583Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None

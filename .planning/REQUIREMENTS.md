@@ -10,8 +10,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Codebase Modernization
 
 - [x] **MODERN-01**: Existing Python codebase is audited, dead terminal-only code (`src/terminal.py`) is safely archived, and core modules (`src/renderer.py`, `src/video.py`, `src/audio.py`, `src/config.py`) are refactored into a reusable core.
-- [ ] **MODERN-02**: Core math routines and frame transformations pass strict linting (`ruff`) and static type checks (`mypy`) with zero errors.
-- [ ] **MODERN-03**: Test suite is updated to verify modernized core modules hermetically, ensuring zero regressions in luminance calculations, box-averaging, and FFmpeg error classifications.
+- [x] **MODERN-02**: Core math routines and frame transformations pass strict linting (`ruff`) and static type checks (`mypy`) with zero errors.
+- [x] **MODERN-03**: Test suite is updated to verify modernized core modules hermetically, ensuring zero regressions in luminance calculations, box-averaging, and FFmpeg error classifications.
 
 ### UI/UX Design & Review Gate
 
@@ -76,8 +76,8 @@ Which phases cover which requirements. (Will be mapped during roadmap creation).
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | MODERN-01 | Phase 1 | Complete |
-| MODERN-02 | Phase 1 | Pending |
-| MODERN-03 | Phase 1 | Pending |
+| MODERN-02 | Phase 1 | Complete |
+| MODERN-03 | Phase 1 | Complete |
 | STUDIO-01 | Phase 2 | Pending |
 | STUDIO-02 | Phase 2 | Pending |
 | STUDIO-03 | Phase 2 | Pending |
