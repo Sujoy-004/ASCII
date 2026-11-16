@@ -476,12 +476,11 @@ _FATAL_TERMINATION_MARKERS: tuple[tuple[str, str], ...] = (
 | A1 | Removing `tests/test_terminal.py` and interactive TUI assertions leaves exactly ~370+ core tests passing | Test Suite Migration | Low: Verified that only 8 tests live in `test_terminal.py` and other test files only mock terminal sinks. |
 | A2 | Downstream Phase 3 FastAPI service will consume `src/__init__.py` directly | Standard Stack & Patterns | Low: Exporting all public symbols via `__all__` provides complete coverage. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Console script entrypoint `rgb-ascii` in `pyproject.toml`:**
+1. **Console script entrypoint `rgb-ascii` in `pyproject.toml` — RESOLVED:**
    - What we know: `pyproject.toml:41` defines `rgb-ascii = "src.main:main"`.
-   - What's unclear: Should `rgb-ascii` remain as a headless media probe/converter CLI, or should it be removed?
-   - Recommendation: Keep `src/main.py:main` as a clean headless CLI (e.g. converting a video/image into ASCII or probing file metadata) so the installed package remains functional without terminal UI dependencies.
+   - Resolution: Keep `src/main.py:main` as a clean headless CLI (converting a video/image into ASCII or probing file metadata) so the installed package remains functional without terminal UI dependencies, as implemented in Plan 01-01.
 
 ## Environment Availability
 
