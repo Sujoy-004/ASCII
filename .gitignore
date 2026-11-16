@@ -8,7 +8,6 @@ venv/
 *.egg-info/
 dist/
 build/
-.planning/
 
 # Benchmark output (see: python bench.py --json baseline.json)
 bench_*.json
@@ -23,5 +22,6 @@ Thumbs.db
 *~
 
 # Local / personal tooling
+.playwright-mcp/
 AGENTS.md
 .env
