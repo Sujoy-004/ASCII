@@ -1,5 +1,5 @@
 ---
-last_mapped_commit: a55586b3cdf529951d93b522083233d43fa80a2e
+last_mapped_commit: e321c7dc0149e147f0982b5600f9b94d3f186120
 last_mapped_at: 2026-11-16
 ---
 # Codebase Structure
@@ -17,7 +17,7 @@ ASCII/
 │   └── codebase/                # Codebase intelligence documents
 ├── assets/                      # Sample multimedia assets and historical test fixtures
 ├── src/                         # Core Python package (flat layout inside src/)
-│   ├── __init__.py              # Package marker
+│   ├── __init__.py              # Public API facade re-exporting core symbols
 │   ├── adaptive.py              # Dynamic quality controller and load shedding
 │   ├── audio.py                 # FFplay audio subprocess management and stream detection
 │   ├── config.py                # Runtime configuration and character presets
@@ -26,7 +26,6 @@ ASCII/
 │   ├── renderer.py              # RGB24 to ASCII & ANSI True Color rendering engine
 │   ├── smoothing.py             # Optional temporal RGB24 smoothing
 │   ├── sync.py                  # Playback timeline, A/V synchronization, duration probing
-│   ├── terminal.py              # Terminal geometry detection, ANSI escapes, buffered output
 │   ├── timing.py                # Frame clock, monotonic deadlines, pacing calculations
 │   └── video.py                 # FFmpeg video decoding subprocess and frame reader
 ├── tests/                       # Hermetic test suite (380+ unit and integration tests)
@@ -61,7 +60,7 @@ ASCII/
 
 **`src/`:**
 - Purpose: Contains all production code for the `rgb-ascii-renderer` package.
-- Contains: Single-responsibility modules managing configuration, subprocesses, synchronization, frame conditioning, rendering, and terminal presentation.
+- Contains: Single-responsibility modules managing configuration, subprocesses, synchronization, frame conditioning, rendering, and output presentation.
 - Key files:
   - `src/main.py`: Top-level CLI and playback orchestrator.
   - `src/renderer.py`: Core True Color ASCII conversion and box-resizing routines.
@@ -93,7 +92,6 @@ ASCII/
 **Subprocess / Hardware Interfaces:**
 - `src/video.py`: FFmpeg subprocess interaction.
 - `src/audio.py`: FFplay subprocess interaction.
-- `src/terminal.py`: Terminal dimensions and raw ANSI stream writes.
 
 ## Naming Conventions
 

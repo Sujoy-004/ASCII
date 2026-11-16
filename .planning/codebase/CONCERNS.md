@@ -44,7 +44,7 @@ last_mapped_at: 2026-11-16
 
 **Terminal I/O Bandwidth on Large Windows (True Color ANSI):**
 - Problem: ANSI 24-bit True Color requires emitting escape sequences per character (e.g., `\x1b[38;2;255;255;255mX`), resulting in ~20-30 bytes of terminal stream per rendered cell. On full-screen 4K terminals (e.g., 240x80 = 19,200 cells), each frame can produce ~400-500 KB of text output. At 30 FPS, this saturates terminal emulator rendering threads.
-- Files: `src/renderer.py`, `src/terminal.py`
+- Files: `src/renderer.py`, `src/main.py`
 - Cause: Terminal emulator throughput limits and ANSI escape formatting overhead.
 - Improvement path: Palette optimization / ANSI state diffing: only emit color escape sequences when the color changes between adjacent cells or consecutive frames, or utilize dirty-region updating.
 
@@ -84,10 +84,7 @@ last_mapped_at: 2026-11-16
 ## Test Coverage Gaps
 
 **Real Terminal Emulator Resizing:**
-- What's not tested: While mathematical aspect ratio recalculation and unit tests exist (`tests/test_terminal.py`, `tests/test_sampling.py`), actual OS terminal resize events (e.g., `SIGWINCH` on POSIX or console buffer events on Windows) during live playback rely on polling `shutil.get_terminal_size()`.
-- Files: `src/terminal.py`, `src/main.py`
-- Risk: Rapid continuous resizing by a user might cause slight visual tearing before the next frame is written.
-- Priority: Low.
+- Status: Obsolete as of Phase 01. `src/terminal.py` was removed; headless runs derive the output grid once at startup (`_headless_output_size` in `src/main.py`) and do not track live resizes.
 
 ---
 
