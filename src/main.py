@@ -1,8 +1,9 @@
 """Entry point: continuous RGB ASCII video rendering with A/V synchronization.
 
 Decodes frames from the input video via FFmpeg, converts each to an
-ANSI-colored ASCII frame, writes it to the terminal, and paces playback toward
-a target FPS on a shared master playback timeline shared with FFplay audio.
+ANSI-colored ASCII frame, hands it to an optional duck-typed output sink (a
+plain stdout sink when run as the CLI), and paces playback toward a target FPS
+on a shared master playback timeline shared with FFplay audio.
 Runs until EOF, handling clean shutdown and Ctrl+C.
 
 The video schedule and the FFplay audio process reference the same
@@ -16,6 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import Any
 
 from src.adaptive import QualityController, apply_level
 from src.audio import (
@@ -37,7 +39,6 @@ from src.sync import (
     probe_video_rate,
     probe_video_size,
 )
-from src.terminal import TerminalRenderer
 from src.timing import FrameClock
 from src.video import FFmpegDecodeError, FFmpegFrameReader, FFmpegNotFoundError
 
@@ -72,12 +73,45 @@ errors, so a typo degrades instead of refusing to play. The adaptive-quality
 flag above is the one control worth setting per run.
 """
 
+# Assumed source aspect ratio (width/height) when it cannot be probed.
+DEFAULT_VIDEO_ASPECT = 16.0 / 9.0
+
+
+class _StdoutSink:
+    """Headless frame sink: writes each rendered ASCII frame to stdout.
+
+    Replaces the retired terminal renderer for CLI runs: frames leave as plain
+    text with no terminal escape sequences, so the command stays usable when
+    the output is piped, redirected, or captured.
+    """
+
+    def write_frame(self, frame_string: str) -> None:
+        sys.stdout.write(frame_string + "\n")
+        sys.stdout.flush()
+
+
+def _headless_output_size(
+    config: Config, video_aspect: float | None
+) -> tuple[int, int]:
+    """Default ASCII grid for headless runs: 80 columns, aspect-derived rows.
+
+    Mirrors the retired terminal sizing math without a viewport: the grid is
+    chosen so ``(cols / rows) * char_aspect`` equals the source
+    ``video_aspect`` (16:9 when unknown), so headless output preserves the
+    source's visual shape.
+    """
+    if video_aspect is None or video_aspect <= 0:
+        video_aspect = DEFAULT_VIDEO_ASPECT
+    cols = 80
+    rows = max(1, round(cols * config.char_aspect / video_aspect))
+    return cols, rows
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=_program_name(),
         description=(
-            "Play a video as real-time colored ASCII art in the terminal, "
+            "Play a video as real-time colored ASCII art, "
             "with the source audio playing alongside."
         ),
         epilog=_ENV_EPILOG,
@@ -316,7 +350,7 @@ def _report_sync(timeline: PlaybackTimeline | None, clock: FrameClock) -> None:
 def run(
     reader,
     renderer,
-    terminal,
+    sink: Any,
     clock: FrameClock,
     config: Config,
     audio: AudioPlayer | None = None,
@@ -329,8 +363,14 @@ def run(
     """Run the continuous playback loop, cleaning up on EOF and Ctrl+C.
 
     Returns 0, or raises FFplayPlaybackError if the audio process failed. Owns
-    the try/finally cleanup so terminal state, the FFmpeg process, and the FFplay
-    audio process are always restored regardless of how playback ends.
+    the try/finally cleanup so the output sink, the FFmpeg process, and the
+    FFplay audio process are always restored regardless of how playback ends.
+
+    ``sink`` is a duck-typed frame consumer: anything providing
+    ``write_frame(str)`` (or, failing that, being callable) receives each
+    rendered ASCII frame; ``refresh_size``/``output_size``/``clear`` drive
+    resize handling when present; ``restore()`` is invoked on teardown when
+    present. ``None`` discards output entirely.
 
     Each frame is scheduled against an absolute timeline deadline provided by
     the FrameClock; processing time is recorded separately from presentation.
@@ -363,7 +403,7 @@ def run(
     blocks = config.blocks
     # Display rows: in half-block mode each cell shows two decoded rows, so the
     # visible grid is half the decoded height; rendering re-scales the decode
-    # resolution to the terminal grid before pairing rows into ▀ cells.
+    # resolution to the output grid before pairing rows into ▀ cells.
     render_rows = (reader.height // 2) if blocks else reader.height
     current_width, current_height = reader.width, render_rows
 
@@ -410,15 +450,18 @@ def run(
                 normal_eof = True
                 break
 
-            # Re-check the terminal on every presentation cycle. A resize only
+            # Re-check the sink on every presentation cycle. A resize only
             # changes rendering dimensions; the decoded frame source and the
-            # absolute playback timeline continue uninterrupted.
-            refresh_size = getattr(terminal, "refresh_size", None)
-            if refresh_size is not None and refresh_size():
-                new_width, new_height = terminal.output_size(video_aspect)
+            # absolute playback timeline continue uninterrupted. A sink that
+            # cannot report a size change leaves the default dimensions
+            # (reader width x render rows) untouched.
+            refresh_size = getattr(sink, "refresh_size", None)
+            output_size = getattr(sink, "output_size", None)
+            if refresh_size is not None and output_size is not None and refresh_size():
+                new_width, new_height = output_size(video_aspect)
                 if (new_width, new_height) != (current_width, current_height):
                     current_width, current_height = new_width, new_height
-                    clear = getattr(terminal, "clear", None)
+                    clear = getattr(sink, "clear", None)
                     if clear is not None:
                         clear()
 
@@ -455,7 +498,11 @@ def run(
                     current_width,
                     current_height,
                 )
-            terminal.write_frame(ascii_frame)
+            write_frame = getattr(sink, "write_frame", None)
+            if callable(write_frame):
+                write_frame(ascii_frame)
+            elif callable(sink):
+                sink(ascii_frame)
             if quality is not None:
                 # Budget this frame against the display slot it was actually
                 # scheduled into -- the gap to the *next* frame's canonical
@@ -510,8 +557,8 @@ def run(
             # so valid remaining audio is not cut off at video EOF.
             #
             # This runs inside `finally`, so a second Ctrl+C here would skip
-            # `audio.stop()` and `terminal.restore()` below and orphan FFplay
-            # with the cursor still hidden. A user who interrupts again has
+            # `audio.stop()` and the sink `restore()` below and orphan FFplay.
+            # A user who interrupts again has
             # already said they want out now, so honour that and fall through
             # to the same cleanup the first interrupt would have reached.
             try:
@@ -538,7 +585,9 @@ def run(
                 timeline.audio_exit_at = audio.exit_at
             # Final guarantee: never leave FFplay running.
             audio.stop()
-        terminal.restore()
+        restore = getattr(sink, "restore", None)
+        if callable(restore):
+            restore()
 
     if config.debug:
         _report_frames(selector)
@@ -577,7 +626,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     reader = None
-    terminal = None
+    sink: Any = None
     audio = None
     timeline = None
     timestamp_probe: TimestampStream | None = None
@@ -587,8 +636,6 @@ def main(argv: list[str] | None = None) -> int:
     probe_started = False
     try:
         renderer = RGBAsciiRenderer(config)
-        terminal = TerminalRenderer(config)
-        terminal.init()
 
         # Optional media probes: duration (for the audio-completion timeout) and
         # source dimensions (for aspect-preserving sizing). Both degrade
@@ -624,9 +671,9 @@ def main(argv: list[str] | None = None) -> int:
                 probe_started = timestamp_probe.start()
         clock = FrameClock(pacing_fps)
 
-        width, height = terminal.output_size(video_aspect)
+        width, height = _headless_output_size(config, video_aspect)
+        sink = _StdoutSink()
         if config.debug:
-            print(f"Terminal:         {terminal.width} x {terminal.height}", file=sys.stderr)
             print(f"Source:           "
                   f"{(src_size[0], src_size[1]) if src_size else 'unknown'} "
                   f"({(f'{video_aspect:.3f}') if video_aspect else '16:9 default'})",
@@ -722,7 +769,7 @@ def main(argv: list[str] | None = None) -> int:
             timeline.audio_launched_at = audio.launched_at
 
         return run(
-            reader, renderer, terminal, clock, config,
+            reader, renderer, sink, clock, config,
             audio, timeline, media_duration=media_duration,
             video_aspect=video_aspect, first_frame=first_frame,
             timestamp_stream=timestamp_probe,
@@ -749,8 +796,10 @@ def main(argv: list[str] | None = None) -> int:
             reader.close()
         if audio is not None:
             audio.stop()
-        if terminal is not None:
-            terminal.restore()
+        if sink is not None:
+            restore = getattr(sink, "restore", None)
+            if callable(restore):
+                restore()
 
 
 if __name__ == "__main__":
