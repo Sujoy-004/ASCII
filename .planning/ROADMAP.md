@@ -21,11 +21,11 @@ Transform the existing Python terminal video renderer into an end-to-end modern 
   2. Core media modules (`renderer.py`, `video.py`, `audio.py`, `config.py`) import cleanly and expose clear interfaces for video decoding, luminance mapping, and box-averaging.
   3. Static type checking (`python -m mypy`) and linting (`python -m ruff check .`) pass with zero errors across all Python sources.
   4. Hermetic test suite (`pytest`) runs cleanly with 100% passing tests on modernized core components.
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 01-01-PLAN.md — Prune terminal-only modules, decouple playback loop into headless frame sink, and establish public engine facade in src/__init__.py.
+- [x] 01-01-PLAN.md — Prune terminal-only modules, decouple playback loop into headless frame sink, and establish public engine facade in src/__init__.py.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md — Prune terminal tests, update test doubles, and verify hermetic test pass, mypy typing, and ruff linting.
@@ -77,7 +77,7 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Codebase Modernization & Core Extraction | 0/2 | Not started | - |
+| 1. Codebase Modernization & Core Extraction | 1/2 | In Progress | - |
 | 2. Studio UI/UX Redesign & Client Shader Pipeline | 0/3 | Not started | - |
 | 3. Backend API, High-Res Export & Deployment | 0/2 | Not started | - |
 
