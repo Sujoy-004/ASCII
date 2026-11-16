@@ -51,10 +51,6 @@ class Config:
     # immediately. Values in (0, 1) blend toward the current frame.
     smoothing: float = 0.0
 
-    # Rows reserved below the render area, so playback stays inside the
-    # viewport and the shell prompt can be restored without scrolling.
-    status_rows: int = 2
-
     enable_audio: bool = True
     enable_color: bool = True
     debug: bool = False
