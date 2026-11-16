@@ -24,7 +24,10 @@ Transform the existing Python terminal video renderer into an end-to-end modern 
 **Plans**: 2 plans
 
 Plans:
+**Wave 1**
 - [ ] 01-01-PLAN.md — Prune terminal-only modules, decouple playback loop into headless frame sink, and establish public engine facade in src/__init__.py.
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md — Prune terminal tests, update test doubles, and verify hermetic test pass, mypy typing, and ruff linting.
 
 ---
