@@ -461,7 +461,11 @@ def test_main_vfr_path_launches_and_closes_the_streaming_probe(tmp_path, monkeyp
     monkeypatch.setattr("subprocess.Popen", popen_router)
     monkeypatch.setattr("src.video.shutil.which", lambda name: name)
     monkeypatch.setattr("src.sync.shutil.which", lambda name: name)
-    monkeypatch.setattr("src.main.TerminalRenderer", FakeTerminal)
+    # The headless CLI grid replaced the retired terminal's output_size:
+    # pin it to the 2x2 grid the fakes below are sized for.
+    monkeypatch.setattr(
+        "src.main._headless_output_size", lambda config, aspect: (2, 2)
+    )
     monkeypatch.setattr("src.main.probe_media_duration", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_size", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_rate", lambda *a: (None, False))
@@ -511,7 +515,11 @@ def test_main_vfr_path_label_degrades_when_the_probe_fails(tmp_path, monkeypatch
     monkeypatch.setattr("subprocess.Popen", popen_router)
     monkeypatch.setattr("src.video.shutil.which", lambda name: name)
     monkeypatch.setattr("src.sync.shutil.which", lambda name: name)
-    monkeypatch.setattr("src.main.TerminalRenderer", FakeTerminal)
+    # The headless CLI grid replaced the retired terminal's output_size:
+    # pin it to the 2x2 grid the fakes below are sized for.
+    monkeypatch.setattr(
+        "src.main._headless_output_size", lambda config, aspect: (2, 2)
+    )
     monkeypatch.setattr("src.main.probe_media_duration", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_size", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_rate", lambda *a: (None, False))
@@ -558,7 +566,11 @@ def test_main_cfr_path_does_not_launch_a_probe(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("subprocess.Popen", popen_router)
     monkeypatch.setattr("src.video.shutil.which", lambda name: name)
     monkeypatch.setattr("src.sync.shutil.which", lambda name: name)
-    monkeypatch.setattr("src.main.TerminalRenderer", FakeTerminal)
+    # The headless CLI grid replaced the retired terminal's output_size:
+    # pin it to the 2x2 grid the fakes below are sized for.
+    monkeypatch.setattr(
+        "src.main._headless_output_size", lambda config, aspect: (2, 2)
+    )
     monkeypatch.setattr("src.main.probe_media_duration", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_size", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_rate", lambda *a: (23.976, True))
