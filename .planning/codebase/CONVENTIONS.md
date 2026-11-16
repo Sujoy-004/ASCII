@@ -59,7 +59,7 @@ Strict 3-group order with future annotations at top:
   - Renderer checks for positive dimensions and matching byte slice lengths.
 
 **Defensive Teardown & Resource Cleanup:**
-- Main execution loops wrap operations in robust `try...finally` blocks to guarantee restoration of terminal cursor, reset of ANSI states, and graceful shutdown of background subprocesses.
+- Main execution loops wrap operations in robust `try...finally` blocks to guarantee graceful shutdown of background subprocesses and probe streams.
 - EOF and SIGINT (Ctrl+C) are caught cleanly, exiting with status 0 rather than dumping unhandled tracebacks to user consoles.
 
 ## Logging

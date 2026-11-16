@@ -36,7 +36,7 @@ last_mapped_at: 2026-11-16
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Rendering & Presentation                          │
-│   `src/renderer.py` (RGBAsciiRenderer) ──► `src/terminal.py` (Terminal)     │
+│   `src/renderer.py` (RGBAsciiRenderer) ──► stdout sink (`src/main.py`)      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,7 +54,7 @@ last_mapped_at: 2026-11-16
 | Temporal Smoothing | Exponential blend of consecutive displayed frames in RGB24 space to reduce flicker | `src/smoothing.py` |
 | Adaptive Quality Controller | Monitors per-frame render work; sheds smoothing or color during sustained overruns | `src/adaptive.py` |
 | ASCII & ANSI Renderer | Maps RGB24 pixels to luminance and ASCII characters; formats 24-bit True Color ANSI | `src/renderer.py` |
-| Terminal Controller | Queries terminal size, manages viewport aspect ratio, writes buffered frames to stdout | `src/terminal.py` |
+| Headless Output Sink | Derives the ASCII grid from the 80-column default and video aspect ratio, writes rendered frames to stdout | `src/main.py` |
 
 ## Pattern Overview
 
@@ -73,7 +73,7 @@ last_mapped_at: 2026-11-16
 - Purpose: CLI interface, parameter validation, lifecycle management, and main loop coordination.
 - Location: `src/main.py`
 - Contains: `main()`, `run()`, `config_from_args()`, and diagnostic reporting routines.
-- Depends on: All lower layers (`src.config`, `src.video`, `src.audio`, `src.sync`, `src.timing`, `src.framesel`, `src.smoothing`, `src.adaptive`, `src.renderer`, `src.terminal`).
+- Depends on: All lower layers (`src.config`, `src.video`, `src.audio`, `src.sync`, `src.timing`, `src.framesel`, `src.smoothing`, `src.adaptive`, `src.renderer`).
 
 **Subprocess & Media I/O Layer:**
 - Purpose: Interface with system multimedia binaries (`ffmpeg`, `ffplay`, `ffprobe`).
@@ -95,9 +95,9 @@ last_mapped_at: 2026-11-16
 - Used by: `src/main.py`.
 
 **Transformation & Output Layer:**
-- Purpose: Translating raw pixel buffers into ANSI strings and writing to terminal viewport.
-- Location: `src/renderer.py`, `src/terminal.py`
-- Contains: `RGBAsciiRenderer`, `resize_rgb24_area`, `char_table_for`, `TerminalRenderer`.
+- Purpose: Translating raw pixel buffers into ANSI strings and writing frames to stdout.
+- Location: `src/renderer.py` (rendering), `src/main.py` (headless stdout sink).
+- Contains: `RGBAsciiRenderer`, `resize_rgb24_area`, `char_table_for`, `_StdoutSink`.
 - Used by: `src/main.py`, `bench.py`.
 
 ## Data Flow
@@ -106,7 +106,7 @@ last_mapped_at: 2026-11-16
 
 1. **Invocation & Pre-flight:**
    - User invokes `rgb-ascii video.mp4` or `python -m src.main video.mp4` (`src/main.py:main`).
-   - `src/main.py` builds `Config`, queries `TerminalRenderer.output_size()`, probes video frame rate/size/duration via `ffprobe`, and checks audio presence.
+   - `src/main.py` builds `Config`, derives the output grid from the 80-column default and video aspect ratio (`_headless_output_size`), probes video frame rate/size/duration via `ffprobe`, and checks audio presence.
 2. **Process Launch & Priming:**
    - `AudioPlayer.start()` launches FFplay in background (`src/audio.py`).
    - `FFmpegFrameReader.open()` launches FFmpeg decoding to RGB24 pipe (`src/video.py`).
@@ -116,10 +116,9 @@ last_mapped_at: 2026-11-16
    - If FFplay audio clock is ready, `FrameClock.adopt_media_clock()` syncs clock basis (`src/timing.py:176`).
 4. **Per-Frame Processing Loop (`src/main.py:run`):**
    - `FrameSelector.next()` reads next frame from FFmpeg; drops stale frames if deadline for next slot has already passed (`src/framesel.py:101`).
-   - Terminal geometry refreshed; resized if changed (`src/terminal.py:refresh_size`).
    - `TemporalSmoother.smooth()` applies optional RGB24 alpha blend (`src/smoothing.py:72`).
    - `RGBAsciiRenderer.render_frame()` converts RGB24 to ANSI True Color ASCII string (`src/renderer.py:257`).
-   - `TerminalRenderer.write_frame()` writes frame buffer to stdout (`src/terminal.py:105`).
+   - `sink.write_frame()` writes the rendered ANSI string to stdout (`src/main.py`).
    - `FrameClock.sleep_until_deadline()` pauses execution for remaining frame duration budget (`src/timing.py:257`).
    - `QualityController.update()` assesses execution utilization and shifts quality levels if needed (`src/adaptive.py:82`).
 5. **Teardown:**
@@ -186,12 +185,12 @@ last_mapped_at: 2026-11-16
 **Strategy:** Clean degradation and fail-fast with actionable guidance on missing dependencies.
 - `FFmpegNotFoundError` / `FFplayNotFoundError`: Intercepted with helpful platform-specific installation instructions (links to official downloads and PATH configuration tips).
 - Decode Termination Classification: `classify_decode_termination` in `src/video.py` analyzes stderr logs to distinguish benign EOF or recoverable decoder packet drops from fatal container corruptions (e.g., missing MOOV atom, partial files).
-- Defensive Terminal Restoration: `src/main.py:run` wraps playback in `try...finally` to ensure the cursor is unhidden and ANSI attributes reset even on unexpected crashes or user interrupts.
+- Defensive Resource Teardown: `src/main.py:run` wraps playback in `try...finally` to ensure the timestamp probe, FFmpeg reader, and FFplay process are always closed, even on unexpected crashes or user interrupts.
 
 ## Cross-Cutting Concerns
 
 - **Logging & Diagnostics:** Centralized under `Config.debug`, printed cleanly to `sys.stderr` without polluting standard output video stream.
-- **Terminal Resize Handling:** `TerminalRenderer.refresh_size()` dynamically detects terminal window resizing, triggering automatic viewport recalculation and clean redraws without resetting media playback.
+- **Headless Output Sizing:** The ASCII grid is derived once at startup from the 80-column default and the video aspect ratio (`_headless_output_size` in `src/main.py`); headless runs do not track live terminal resizes.
 - **Platform Portability:** Handles OS-specific newline conventions, terminal escape compatibility (ANSI True Color), and Windows console behavior.
 
 ---
