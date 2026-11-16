@@ -101,7 +101,11 @@ def _run_with(tmp_path, monkeypatch, *, stdout_bytes, returncode, stderr_text=b"
     # The decoder resolves ffmpeg by name before spawning it; point that at a
     # path so the test does not need a real FFmpeg installed.
     monkeypatch.setattr("src.video.shutil.which", lambda name: name)
-    monkeypatch.setattr("src.main.TerminalRenderer", FakeTerminal)
+    # The headless CLI grid replaced the retired terminal's output_size:
+    # pin it to the 2x2 grid the fakes below are sized for.
+    monkeypatch.setattr(
+        "src.main._headless_output_size", lambda config, aspect: (2, 2)
+    )
     monkeypatch.setattr("src.main.probe_media_duration", lambda *a, **k: None)
     monkeypatch.setattr("src.main.probe_video_size", lambda *a, **k: None)
     # Keep the CFR/VFR routing hermetic too, so this stays deterministic even
