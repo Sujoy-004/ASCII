@@ -24,8 +24,8 @@ Transform the existing Python terminal video renderer into an end-to-end modern 
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Audit codebase, decouple terminal runner into archive, and restructure core media modules.
-- [ ] 01-02: Streamline core algorithms, update tests for isolated core, and verify mypy/ruff checks.
+- [ ] 01-01-PLAN.md — Prune terminal-only modules, decouple playback loop into headless frame sink, and establish public engine facade in src/__init__.py.
+- [ ] 01-02-PLAN.md — Prune terminal tests, update test doubles, and verify hermetic test pass, mypy typing, and ruff linting.
 
 ---
 
