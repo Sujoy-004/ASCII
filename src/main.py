@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 from typing import Any
 
@@ -76,29 +77,135 @@ flag above is the one control worth setting per run.
 # Assumed source aspect ratio (width/height) when it cannot be probed.
 DEFAULT_VIDEO_ASPECT = 16.0 / 9.0
 
+# Terminal control sequences, mirroring the retired terminal module's own
+# constants (git history: ``git show 2a19dea^:src/terminal.py``). TTY-only:
+# the sink below writes these exclusively when stdout is a real terminal;
+# piped, redirected, or captured output never receives an escape byte.
+_CLEAR = "\x1b[2J"
+_HOME = "\x1b[H"
+_HIDE_CURSOR = "\x1b[?25l"
+_SHOW_CURSOR = "\x1b[?25h"
+_ANSI_RESET = "\x1b[0m"
+
+
+def _stdout_is_tty() -> bool:
+    """Single isatty source of truth: both the sizing gate and the animation
+    gate consult only this function, so the grid and the animation mode can
+    never disagree."""
+    return sys.stdout.isatty()
+
+
+def _terminal_size() -> tuple[int, int]:
+    """Return the terminal (columns, lines) using the OS-reported size.
+
+    The single sizing seam tests monkeypatch (mirrors the retired terminal
+    module's ``detect_size`` and the ``_headless_output_size`` pin pattern).
+    """
+    size = shutil.get_terminal_size((80, 24))
+    return size.columns, size.lines
+
+
+def _tty_output_size(
+    config: Config, video_aspect: float | None
+) -> tuple[int, int] | None:
+    """ASCII grid fitted to the real terminal; ``None`` when not a TTY.
+
+    Mirrors the retired terminal module's ``output_size`` math (minus the
+    purged ``status_rows``): the grid is chosen so that
+    ``(cols / rows) * char_aspect`` equals the source ``video_aspect``,
+    filling the viewport in the limiting dimension. Terminal dimensions are
+    clamped to at least 1 and the grid is clamped back into the terminal
+    bounds, so a degenerate size report can never produce an empty grid.
+    """
+    if not _stdout_is_tty():
+        return None
+    if video_aspect is None or video_aspect <= 0:
+        video_aspect = DEFAULT_VIDEO_ASPECT
+    avail_w, avail_h = _terminal_size()
+    if avail_w < 1:
+        avail_w = 1
+    if avail_h < 1:
+        avail_h = 1
+
+    cf = config.char_aspect  # cell width / height
+    # (cols * cf) / rows == video_aspect  ->  rows == cols * cf / video_aspect
+    cols = min(avail_w, round(avail_h * video_aspect / cf))
+    if cols < 1:
+        cols = 1
+    rows = round(cols * cf / video_aspect)
+    if rows < 1:
+        rows = 1
+    if rows > avail_h:
+        rows = avail_h
+    if cols > avail_w:
+        cols = avail_w
+    return cols, rows
+
 
 class _StdoutSink:
-    """Headless frame sink: writes each rendered ASCII frame to stdout.
+    """Dual-mode frame sink: in-place animation on a TTY, plain text when piped.
 
-    Replaces the retired terminal renderer for CLI runs: frames leave as plain
-    text with no terminal escape sequences, so the command stays usable when
-    the output is piped, redirected, or captured.
+    When stdout is a terminal (TTY), the first frame emits a screen clear,
+    homes the cursor, and hides the cursor, and every frame homes the cursor
+    and redraws in place -- no trailing newline, no scroll. When stdout is
+    piped, redirected, or captured, each frame is written as plain text
+    followed by exactly one newline with no escape sequences, so the output is
+    byte-identical to the pre-fix headless contract and stays usable by
+    downstream programs. ``restore()`` shows the cursor again and lands on a
+    fresh line (TTY only); on a piped stream it writes nothing.
+
+    The TTY/non-TTY decision is made once, from ``_stdout_is_tty()``, the same
+    source of truth the grid sizing consults, so the animation mode and the
+    grid can never disagree.
     """
 
+    def __init__(self, config: Config) -> None:
+        self._config = config
+        self._tty = _stdout_is_tty()
+        self._initialized = False
+        self.width: int = 0
+        self.height: int = 0
+        if self._tty:
+            self.width, self.height = _terminal_size()
+
     def write_frame(self, frame_string: str) -> None:
-        sys.stdout.write(frame_string + "\n")
+        if not self._tty:
+            # Piped/redirected path: byte-identical plain text, no escapes.
+            sys.stdout.write(frame_string + "\n")
+            sys.stdout.flush()
+            return
+        if self._initialized:
+            payload = _HOME + frame_string
+        else:
+            payload = _CLEAR + _HOME + _HIDE_CURSOR + frame_string
+            self._initialized = True
+        sys.stdout.write(payload)
         sys.stdout.flush()
+
+    def restore(self) -> None:
+        """Show the cursor, reset styling, land on a fresh line (TTY only).
+
+        Idempotent: only acts while the terminal is initialized, so overlapping
+        cleanup paths (run()'s finally and main()'s finally) cannot double-emit.
+        """
+        if not self._initialized:
+            return
+        sys.stdout.write(_SHOW_CURSOR + _ANSI_RESET + "\n")
+        sys.stdout.flush()
+        self._initialized = False
 
 
 def _headless_output_size(
     config: Config, video_aspect: float | None
 ) -> tuple[int, int]:
-    """Default ASCII grid for headless runs: 80 columns, aspect-derived rows.
+    """Non-TTY default ASCII grid: 80 columns, aspect-derived rows.
 
-    Mirrors the retired terminal sizing math without a viewport: the grid is
-    chosen so ``(cols / rows) * char_aspect`` equals the source
-    ``video_aspect`` (16:9 when unknown), so headless output preserves the
-    source's visual shape.
+    The piped/redirected fallback grid and the injection point for the
+    headless size pins in the test suite: when stdout is not a terminal the
+    grid is fixed at 80 columns with rows derived so
+    ``(cols / rows) * char_aspect`` equals the source ``video_aspect``
+    (16:9 when unknown), preserving the source's visual shape without a
+    viewport. (On a TTY, ``_tty_output_size`` replaces this.)
     """
     if video_aspect is None or video_aspect <= 0:
         video_aspect = DEFAULT_VIDEO_ASPECT
@@ -671,8 +778,16 @@ def main(argv: list[str] | None = None) -> int:
                 probe_started = timestamp_probe.start()
         clock = FrameClock(pacing_fps)
 
-        width, height = _headless_output_size(config, video_aspect)
-        sink = _StdoutSink()
+        # Dual-mode grid selection: construct the sink first (it latches the
+        # TTY/non-TTY decision), then pick the grid -- TTY-fit branch sizes to
+        # the real terminal; piped-default branch keeps the fixed headless
+        # grid so output stays byte-identical plain text.
+        sink = _StdoutSink(config)
+        tty_size = _tty_output_size(config, video_aspect)
+        width, height = (
+            tty_size if tty_size is not None
+            else _headless_output_size(config, video_aspect)
+        )
         if config.debug:
             print(f"Source:           "
                   f"{(src_size[0], src_size[1]) if src_size else 'unknown'} "
