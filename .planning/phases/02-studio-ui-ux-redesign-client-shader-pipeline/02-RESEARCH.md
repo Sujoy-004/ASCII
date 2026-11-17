@@ -594,15 +594,17 @@ export const useStudioStore = create<StudioState>((set) => ({
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How should animated GIFs be ingested in the viewport (MEDIA-01)?**
    - *What we know:* Standard `<img>` elements play animated GIFs natively in the browser, but uploading an `<img>` to a WebGPU texture uploads only the first frame unless parsed.
    - *Recommendation:* For v1, treat uploaded GIFs as standard images (first frame) for instant retro styling, or use a lightweight canvas frame iterator if full animation playback is required.
+   - **RESOLVED:** Handled in v1 by ingesting the first frame via ImageBitmap/HTMLImageElement for instant retro shader styling without client bloat; video files (MP4/WebM) provide full-frame animated pipelines.
 
 2. **Should SVG exports include individual `<tspan>` elements for TrueColor or monochrome text?**
    - *What we know:* TrueColor SVGs with thousands of colored `<tspan>` elements can generate 2-5MB text files for high-resolution images.
    - *Recommendation:* Provide an export toggle in the Export Drawer: "Monochrome SVG (Lightweight)" vs "TrueColor SVG (Full Fidelity)".
+   - **RESOLVED:** Implemented in Plan 02-04 as a user-selectable toggle in the Export Drawer: "Monochrome SVG (Lightweight)" vs "TrueColor SVG (Full Fidelity)", satisfying both file-size economy and full visual fidelity.
 
 ---
 
