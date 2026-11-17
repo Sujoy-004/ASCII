@@ -21,7 +21,7 @@ Transform the existing Python terminal video renderer into an end-to-end modern 
   2. Core media modules (`renderer.py`, `video.py`, `audio.py`, `config.py`) import cleanly and expose clear interfaces for video decoding, luminance mapping, and box-averaging.
   3. Static type checking (`python -m mypy`) and linting (`python -m ruff check .`) pass with zero errors across all Python sources.
   4. Hermetic test suite (`pytest`) runs cleanly with 100% passing tests on modernized core components.
-**Plans**: 2/3 plans executed (01-03 is UAT gap closure)
+**Plans**: 3/3 plans executed (01-03 is UAT gap closure)
 
 Plans:
 **Wave 1**
@@ -31,7 +31,7 @@ Plans:
 - [x] 01-02-PLAN.md — Prune terminal tests, update test doubles, and verify hermetic test pass, mypy typing, and ruff linting.
 
 **Wave 3** *(gap closure — UAT Gap 1: real-TTY playback watchability)*
-- [ ] 01-03-PLAN.md — Restore watchable real-TTY playback: terminal-fit sizing via shutil.get_terminal_size plus isatty-guarded cursor-home animation in the dual-mode stdout sink; piped output stays byte-identical plain text.
+- [x] 01-03-PLAN.md — Restore watchable real-TTY playback: terminal-fit sizing via shutil.get_terminal_size plus isatty-guarded cursor-home animation in the dual-mode stdout sink; piped output stays byte-identical plain text.
 
 ---
 
