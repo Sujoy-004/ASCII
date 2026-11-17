@@ -45,12 +45,20 @@ Plans:
   3. User can activate live webcam feed via `getUserMedia` and adjust ASCII character sets (Standard, Dense, Simple, Blocks), cell scaling, dithering, halftone, and tone controls in real time.
   4. Client-side export downloads instant high-resolution PNG, JPEG, SVG, or plain ASCII text (`.txt`) files without server dependency.
   5. Automatic fallback to WebGL2 activates seamlessly on browsers or devices without WebGPU support.
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
-- [ ] 02-01: Generate Stitch MCP design prototypes, conduct user design review, and secure explicit approval.
-- [ ] 02-02: Implement SPA studio shell with React, Vite, Tailwind CSS, Zustand store, and interactive canvas viewport.
-- [ ] 02-03: Implement WebGPU/WebGL2 shader pipeline (ASCII, Dither, Halftone, VHS, Adjustments), media/webcam loaders, and client export.
+**Wave 1**
+- [ ] 02-01-PLAN.md — Prototype visual studio interface with Stitch MCP and secure explicit user design approval gate.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 02-02-PLAN.md — Implement React 19 + TypeScript SPA studio shell with three-column docked layout, Viewport HUD, and blank-slate media/webcam ingestion.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 02-03-PLAN.md — Build Three.js WebGPU / TSL 16-shader engine with WebGL2 fallback, dynamic monospace atlas, and stage-gated pipeline.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 02-04-PLAN.md — Implement client-side multi-format export suite (PNG, JPEG, SVG, TXT) and in-browser quick canvas recorder (WebM, animated GIF).
 
 ---
 
