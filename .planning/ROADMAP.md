@@ -6,7 +6,7 @@ Transform the existing Python terminal video renderer into an end-to-end modern 
 
 ## Phases
 
-- [ ] **Phase 1: Codebase Modernization & Core Engine Extraction** - Audit existing Python code, archive terminal runner, isolate core media algorithms, and ensure strict linting/typing.
+- [x] **Phase 1: Codebase Modernization & Core Engine Extraction** - Audit existing Python code, archive terminal runner, isolate core media algorithms, and ensure strict linting/typing. (completed 2026-11-17)
 - [ ] **Phase 2: Studio UI/UX Redesign & Client Shader Pipeline** - Prototype UI via Stitch MCP for explicit user approval, then build the React + WebGPU/WebGL2 interactive studio with media/webcam input and client-side exports.
 - [ ] **Phase 3: Backend API, High-Res Export & Git-Driven Deployment** - FastAPI service, FFmpeg video/GIF transcoding with audio sync, Neon PostgreSQL scaffolding, and zero-cost cloud deployment via `render.yaml` and `wrangler.toml`.
 
@@ -21,7 +21,7 @@ Transform the existing Python terminal video renderer into an end-to-end modern 
   2. Core media modules (`renderer.py`, `video.py`, `audio.py`, `config.py`) import cleanly and expose clear interfaces for video decoding, luminance mapping, and box-averaging.
   3. Static type checking (`python -m mypy`) and linting (`python -m ruff check .`) pass with zero errors across all Python sources.
   4. Hermetic test suite (`pytest`) runs cleanly with 100% passing tests on modernized core components.
-**Plans**: 3/3 plans executed (01-03 is UAT gap closure)
+**Plans**: 3/3 plans complete (01-03 is UAT gap closure)
 
 Plans:
 **Wave 1**
@@ -80,7 +80,7 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Codebase Modernization & Core Extraction | 2/2 | In Progress | - |
+| 1. Codebase Modernization & Core Extraction | 3/3 | Complete    | 2026-11-17 |
 | 2. Studio UI/UX Redesign & Client Shader Pipeline | 0/3 | Not started | - |
 | 3. Backend API, High-Res Export & Deployment | 0/2 | Not started | - |
 

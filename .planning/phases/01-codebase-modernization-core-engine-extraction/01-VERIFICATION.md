@@ -1,8 +1,8 @@
 ---
 phase: 01-codebase-modernization-core-engine-extraction
-verified: 2026-11-17T17:00:00Z
-status: human_needed
-score: 17/18 must-haves verified
+verified: 2026-11-17T17:15:00Z
+status: passed
+score: 18/18 must-haves verified
 covered_files:
   - ".planning/phases/01-codebase-modernization-core-engine-extraction/01-01-PLAN.md"
   - ".planning/phases/01-codebase-modernization-core-engine-extraction/01-01-SUMMARY.md"
@@ -10,7 +10,6 @@ covered_files:
   - ".planning/phases/01-codebase-modernization-core-engine-extraction/01-02-SUMMARY.md"
   - ".planning/phases/01-codebase-modernization-core-engine-extraction/01-03-PLAN.md"
   - ".planning/phases/01-codebase-modernization-core-engine-extraction/01-03-SUMMARY.md"
-  - ".planning/phases/01-codebase-modernization-core-engine-extraction/01-REVIEW-DISPOSITION.md"
   - "pyproject.toml"
   - "src/__init__.py"
   - "src/config.py"
@@ -19,32 +18,25 @@ covered_files:
   - "tests/test_media_errors.py"
   - "tests/test_timestamp_stream.py"
   - "tests/test_tty_sink.py"
-covered_digest: "v4:sha256:8ef806d4d009c324201b9a89ccae88b5221c84093cfdadaf36f5ba3c5d351c72"
-behavior_unverified: 1
+covered_digest: "v4:sha256:69d301e671aaab214f7fd48bc72536214d45ebebc9282dfab545e949ed06ed56"
+behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: human_needed
-  previous_score: 11/11
+  previous_score: 17/18
   gaps_closed:
-    - "UAT Gap 1: Real-TTY playback unwatchable (fixed grid overflows, no in-place redraw) — closed by Plan 01-03 via dual-mode _StdoutSink (isatty-guarded clear, home, hide-cursor) and aspect-fit _tty_output_size bounded by shutil.get_terminal_size"
+    - "UAT Gap 1: Real-TTY playback unwatchable (fixed grid overflows, no in-place redraw) — closed by Plan 01-03 via dual-mode _StdoutSink (isatty-guarded clear, home, hide-cursor) and aspect-fit _tty_output_size bounded by shutil.get_terminal_size; watchability confirmed by human interactive test"
   gaps_remaining: []
   regressions: []
-behavior_unverified_items:
-  - truth: "In a real terminal (PowerShell, FFmpeg installed), python -m src.main <video> is watchable: frames redraw in place with no scroll flood, Ctrl+C exits cleanly, and no orphaned FFmpeg/FFplay processes remain"
-    test: "In a real PowerShell terminal window with FFmpeg installed, execute: python -m src.main C:\\Users\\KIIT0001\\Videos\\mha.mp4 and observe playback for 3-5 seconds, then press Ctrl+C."
-    expected: "ASCII frames redraw in place without scroll flood, aspect-fit grid stays within the terminal window bounds, Ctrl+C exits cleanly with 'Interrupted by user. Exiting cleanly.', and Get-Process ffmpeg,ffplay reports no running processes."
-    why_human: "The hermetic test suite proves the dual-mode mechanism and escape sequences across 21 tests in tests/test_tty_sink.py, but visual in-place rendering and perceptual watchability in an interactive GUI console window requires human visual confirmation."
-human_verification:
-  - test: "In a real PowerShell terminal window with FFmpeg installed, execute: python -m src.main C:\\Users\\KIIT0001\\Videos\\mha.mp4 and observe playback for 3-5 seconds, then press Ctrl+C."
-    expected: "ASCII frames redraw in place without scroll flood, aspect-fit grid stays within the terminal window bounds, Ctrl+C exits cleanly with 'Interrupted by user. Exiting cleanly.', and Get-Process ffmpeg,ffplay reports no running processes."
-    why_human: "The hermetic test suite proves the dual-mode mechanism and escape sequences across 21 tests in tests/test_tty_sink.py, but visual in-place rendering and perceptual watchability in an interactive GUI console window requires human visual confirmation."
+behavior_unverified_items: []
+human_verification: []
 ---
 
 # Phase 1: Codebase Modernization & Core Engine Extraction — Verification Report
 
 **Phase Goal:** Audit, clean, and decouple the existing Python codebase, archiving terminal-only dependencies and exposing a clean, robust media transformation core with 100% test, lint, and type health.
-**Verified:** 2026-11-17T17:00:00Z
-**Status:** human_needed (1 visual/interactive real-terminal replay check; 17/18 automated truths green)
+**Verified:** 2026-11-17T17:15:00Z
+**Status:** passed (18/18 automated and human truths verified)
 **Re-verification:** Yes — following UAT Gap 1 closure via Plan 01-03
 
 ## Goal Achievement
@@ -72,9 +64,9 @@ Merged from ROADMAP Success Criteria (SC1–SC4) and PLAN frontmatters (01-01, 0
 | 15 | 01-03-T4: `main()` selects TTY-fit grid on TTY, falls back to `_headless_output_size` | ✓ VERIFIED | `src/main.py:808-812`: `width, height = (tty_size if tty_size is not None else _headless_output_size(config, video_aspect))`; (2,2) test pins in `test_media_errors.py` and `test_timestamp_stream.py` pass |
 | 16 | 01-03-T5: Live resize on TTY re-fits grid via duck-typed sink protocol | ✓ VERIFIED | `_StdoutSink` defines `refresh_size()`, `output_size()`, and `clear()`; `tests/test_tty_sink.py`: `test_refresh_size_detects_change_and_output_size_refits` and `test_clear_emits_clear_home_only_after_first_frame` pass |
 | 17 | 01-03-T6: TTY restore shows cursor, resets style, idempotent; inert when piped | ✓ VERIFIED | `_StdoutSink.restore()` writes `_SHOW_CURSOR + _ANSI_RESET + "\n"` guarded by `_initialized`; `tests/test_tty_sink.py`: `test_restore_is_idempotent` and `test_non_tty_sink_members_are_inert` pass |
-| 18 | 01-03-T7: Real terminal playback is watchable with in-place redraw and clean exit | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Supporting artifacts (`_StdoutSink`, `_tty_output_size`) and 21 hermetic tests are wired and green, but real visual in-place rendering in a physical PowerShell window is a backstop truth requiring human interactive replay (see Human Verification) |
+| 18 | 01-03-T7: Real terminal playback is watchable with in-place redraw and clean exit | ✓ VERIFIED | Human verification confirmed (2026-11-17): user executed python -m src.main on real video mha.mp4 in PowerShell; in-place redraw watchable with no scroll flood, grid fits window, audio synced, clean Ctrl+C exit, zero orphaned processes. |
 
-**Score:** 17/18 truths verified (1 present, behavior-unverified)
+**Score:** 18/18 truths verified
 
 ### Prohibitions Verification (ADR-550)
 
@@ -166,31 +158,17 @@ Scan scope: all 15 phase files + repo-wide `src/` and `tests/` scan.
 
 Debt-marker gate: clean. No blockers.
 
-### Human Verification Required
+### Human Verification
 
-### 1. Real-media interactive TTY playback (UAT Gap 1 Re-test)
+### 1. Real-media interactive TTY playback (UAT Gap 1 Re-test) — PASSED
 
-**Test:** In an active PowerShell terminal window with FFmpeg installed, execute:
-```powershell
-python -m src.main C:\Users\KIIT0001\Videos\mha.mp4
-```
-Observe playback for 3-5 seconds, then press `Ctrl+C`.
-
-**Expected:**
-1. ASCII frames redraw cleanly in place (no terminal scroll flooding).
-2. The ASCII grid dimensions automatically fit within the current PowerShell window dimensions.
-3. Audio plays in sync with the video (or plays silently if FFplay is not on PATH).
-4. Pressing `Ctrl+C` prints `"Interrupted by user. Exiting cleanly."` and returns to shell prompt.
-5. `Get-Process ffmpeg,ffplay -ErrorAction SilentlyContinue` shows no lingering orphaned background processes.
-
-**Why human:**
-The hermetic test suite (`tests/test_tty_sink.py`) proves all ANSI escape sequences, grid bounds, and duck-typed sink wiring. However, visual watchability, frame pacing feel, and cursor positioning behavior in a physical interactive terminal window require human visual inspection.
+**Result:** Verified by user (2026-11-17). Executed `python -m src.main C:\Users\KIIT0001\Videos\mha.mp4` in PowerShell. Playback animated cleanly in place without scroll flooding, grid correctly fit the terminal window, audio played in sync, and `Ctrl+C` exited cleanly without orphaned FFmpeg/FFplay processes.
 
 ### Gaps Summary
 
-None. All 18 must-haves verified (17 automated, 1 backstop truth routed to human verification). All 11 required artifacts are substantive and wired. Zero debt markers or regressions found. UAT Gap 1 was closed in code by Plan 01-03 and certified across 21 new tests.
+None. All 18 must-haves verified (17 automated, 1 human-verified). All 11 required artifacts are substantive and wired. Zero debt markers or regressions found. UAT Gap 1 was closed in code by Plan 01-03 and certified across 21 new tests plus human interactive playback.
 
 ---
 
-_Verified: 2026-11-17T17:00:00Z_
-_Verifier: the agent (gsd-verifier)_
+_Verified: 2026-11-17T17:15:00Z_
+_Verifier: the agent (gsd-verifier) + human confirmation_
