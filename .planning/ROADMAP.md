@@ -45,7 +45,7 @@ Plans:
   3. User can activate live webcam feed via `getUserMedia` and adjust ASCII character sets (Standard, Dense, Simple, Blocks), cell scaling, dithering, halftone, and tone controls in real time.
   4. Client-side export downloads instant high-resolution PNG, JPEG, SVG, or plain ASCII text (`.txt`) files without server dependency.
   5. Automatic fallback to WebGL2 activates seamlessly on browsers or devices without WebGPU support.
-**Plans**: 4 plans
+**Plans**: 5 plans
 
 Plans:
 **Wave 1**
@@ -55,10 +55,13 @@ Plans:
 - [ ] 02-02-PLAN.md — Implement React 19 + TypeScript SPA studio shell with three-column docked layout, Viewport HUD, and blank-slate media/webcam ingestion.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 02-03-PLAN.md — Build Three.js WebGPU / TSL 16-shader engine with WebGL2 fallback, dynamic monospace atlas, and stage-gated pipeline.
+- [ ] 02-03-PLAN.md — Build core Three.js WebGPU / TSL engine with WebGL2 fallback, dynamic monospace atlas, Rec. 601 ASCII node, and stage-gated pre-tone & CRT pipeline.
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 02-04-PLAN.md — Implement client-side multi-format export suite (PNG, JPEG, SVG, TXT) and in-browser quick canvas recorder (WebM, animated GIF).
+- [ ] 02-04-PLAN.md — Implement full 15 Grainrad primary retro shaders in TSL/WGSL and dynamic EffectInspector parameter panel.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 02-05-PLAN.md — Implement client-side multi-format export suite (PNG, JPEG, SVG, TXT) and in-browser quick canvas recorder (WebM, animated GIF).
 
 ---
 
@@ -89,7 +92,7 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Codebase Modernization & Core Extraction | 3/3 | Complete    | 2026-11-17 |
-| 2. Studio UI/UX Redesign & Client Shader Pipeline | 0/3 | Not started | - |
+| 2. Studio UI/UX Redesign & Client Shader Pipeline | 0/5 | Not started | - |
 | 3. Backend API, High-Res Export & Deployment | 0/2 | Not started | - |
 
 ---
