@@ -194,6 +194,28 @@ class _StdoutSink:
         sys.stdout.flush()
         self._initialized = False
 
+    def refresh_size(self) -> bool:
+        """Query terminal size; return True if changed since last sample (TTY only)."""
+        if not self._tty:
+            return False
+        width, height = _terminal_size()
+        changed = (width, height) != (self.width, self.height)
+        if changed:
+            self.width, self.height = width, height
+            return True
+        return False
+
+    def output_size(self, video_aspect: float | None) -> tuple[int, int]:
+        """Return the fitted ASCII grid dimensions for the given video aspect ratio."""
+        size = _tty_output_size(self._config, video_aspect)
+        return size if size is not None else (self.width, self.height)
+
+    def clear(self) -> None:
+        """Erase the stale frame and home cursor on mid-playback resize (TTY only)."""
+        if self._tty and self._initialized:
+            sys.stdout.write(_CLEAR + _HOME)
+            sys.stdout.flush()
+
 
 def _headless_output_size(
     config: Config, video_aspect: float | None
