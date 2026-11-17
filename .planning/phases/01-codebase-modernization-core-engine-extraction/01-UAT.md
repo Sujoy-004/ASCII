@@ -3,18 +3,20 @@ status: testing
 phase: 01-codebase-modernization-core-engine-extraction
 source: [01-VERIFICATION.md]
 started: 2026-11-17T01:00:46Z
-updated: 2026-11-17T01:31:22Z
+updated: 2026-11-17T17:05:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: Real-media headless CLI playback
+number: 2
+name: Real-media interactive TTY playback (UAT Gap 1 Re-test)
 expected: |
-  Run the headless CLI against a real media file with FFmpeg installed:
-  `python -m src.main <video>` (or `rgb-ascii <video>`). Observe stdout, then
-  Ctrl+C partway through. Plain-text ASCII frames stream to stdout with no ANSI
-  cursor/escape sequences; Ctrl+C exits cleanly without orphaned FFmpeg/FFplay
+  In a real PowerShell terminal window with FFmpeg installed, execute:
+  `python -m src.main C:\Users\KIIT0001\Videos\mha.mp4` and observe playback for
+  3-5 seconds, then press Ctrl+C.
+  ASCII frames redraw in place without scroll flood, aspect-fit grid stays
+  within the terminal window bounds, Ctrl+C exits cleanly with 'Interrupted by
+  user. Exiting cleanly.', and Get-Process ffmpeg,ffplay reports no running
   processes.
 awaiting: user response
 
@@ -41,12 +43,16 @@ notes: |
   plus isatty-guarded cursor-home animation; piped/redirected output stays
   byte-identical plain text.
 
+### 2. Real-media interactive TTY playback (UAT Gap 1 Re-test)
+expected: ASCII frames redraw in place without scroll flood, aspect-fit grid stays within the terminal window bounds, Ctrl+C exits cleanly with 'Interrupted by user. Exiting cleanly.', and Get-Process ffmpeg,ffplay reports no running processes.
+result: [pending]
+
 ## Summary
 
-total: 1
+total: 2
 passed: 0
 issues: 1
-pending: 0
+pending: 1
 skipped: 0
 blocked: 0
 
