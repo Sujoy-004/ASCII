@@ -6,7 +6,7 @@
     {
       "number": "1",
       "name": "Codebase Modernization & Core Extraction",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "2",
@@ -21,8 +21,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 1 of 3 · 0% · ready to verify"
+    "label": "Advance to the next step (plan phase 2)",
+    "reason": "Phase 2 of 3 — needs a plan"
   },
-  "updated_at": "2026-11-16T09:27:01.408Z"
+  "updated_at": "2026-11-17T17:04:42.084Z"
 }
