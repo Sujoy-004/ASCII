@@ -28,7 +28,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "mypy>=1.0", "ruff>=0.1"]
+dev = ["pytest>=7.0", "pytest-asyncio", "pyyaml", "mypy>=1.0", "ruff>=0.1"]
 
 [project.urls]
 Homepage = "https://github.com/Sujoy-004/ASCII"
