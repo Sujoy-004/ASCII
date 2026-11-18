@@ -26,6 +26,7 @@ export default function CenterStage() {
   const tone = useStudioStore((s) => s.tone);
   const ascii = useStudioStore((s) => s.ascii);
   const effect = useStudioStore((s) => s.effect);
+  const effectParams = useStudioStore((s) => s.effectParams);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pipelineRef = useRef<StudioPipeline | null>(null);
@@ -85,6 +86,14 @@ export default function CenterStage() {
       pipelineRef.current.setEffect(effect);
     }
   }, [effect]);
+
+  useEffect(() => {
+    if (pipelineRef.current) {
+      for (const [key, value] of Object.entries(effectParams)) {
+        pipelineRef.current.updateEffectParam(key, value);
+      }
+    }
+  }, [effectParams]);
 
   // 3. Synchronize media texture to pipeline
   useEffect(() => {

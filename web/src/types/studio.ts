@@ -70,3 +70,22 @@ export interface ExportConfig {
   /** Output scale multiplier relative to media native dimensions */
   scale: number;
 }
+
+export interface EffectParams {
+  ditherSteps: number;
+  ditherSpread: number;
+  halftoneFreq: number;
+  halftoneAngle: number;
+  halftoneRadius: number;
+  matrixSpeed: number;
+  matrixDensity: number;
+  sortThreshold: number;
+  sortSpan: number;
+  sortDirection: number;
+  genericA: number;
+  genericB: number;
+  vhsScanlineIntensity: number;
+  vhsAberration: number;
+  vhsNoiseIntensity: number;
+  vhsCurvature: number;
+}

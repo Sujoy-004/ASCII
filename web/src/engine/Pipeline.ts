@@ -203,8 +203,13 @@ export class StudioPipeline {
       case 'matrixDensity': this.matrixDensity.value = value; break;
       case 'sortThreshold': this.sortThreshold.value = value; break;
       case 'sortSpan': this.sortSpan.value = value; break;
+      case 'sortDirection': this.sortDirection.value = value; break;
       case 'genericA': this.genericParamA.value = value; break;
       case 'genericB': this.genericParamB.value = value; break;
+      case 'vhsScanlineIntensity': this.vhsScanlineIntensity.value = value; break;
+      case 'vhsAberration': this.vhsAberration.value = value; break;
+      case 'vhsNoiseIntensity': this.vhsNoiseIntensity.value = value; break;
+      case 'vhsCurvature': this.vhsCurvature.value = value; break;
     }
   }
 
@@ -229,16 +234,23 @@ export class StudioPipeline {
       return;
     }
 
-    // Stage 1: Pre-Tone
-    const preToneOut = preToneNode({
-      colorNode: this.sourceTextureNode,
-      brightness: this.brightnessUniform,
-      contrast: this.contrastUniform,
-      saturation: this.saturationUniform,
-      hueRotation: this.hueRotationUniform,
-      gamma: this.gammaUniform,
-      invert: this.invertUniform,
-    });
+    // Stage 1: Pre-Tone sampler (supports custom UV coordinates for spatial shaders)
+    const samplePreTone = (customUV?: any) => {
+      const srcNode = customUV && this.sourceTexture
+        ? texture(this.sourceTexture, customUV)
+        : this.sourceTextureNode;
+      return preToneNode({
+        colorNode: srcNode,
+        brightness: this.brightnessUniform,
+        contrast: this.contrastUniform,
+        saturation: this.saturationUniform,
+        hueRotation: this.hueRotationUniform,
+        gamma: this.gammaUniform,
+        invert: this.invertUniform,
+      });
+    };
+
+    const preToneOut = samplePreTone();
 
     // Stage 2: 16 Grainrad Primary Effect Switching (D-02)
     let effectOut: any = preToneOut;
@@ -287,7 +299,7 @@ export class StudioPipeline {
         break;
       case 'pixelSort':
         effectOut = pixelSortShaderNode({
-          colorNode: preToneOut,
+          sampleAt: samplePreTone,
           threshold: this.sortThreshold,
           sortSpan: this.sortSpan,
           direction: this.sortDirection,
@@ -312,8 +324,9 @@ export class StudioPipeline {
         break;
       case 'blockify':
         effectOut = blockifyShaderNode({
-          colorNode: preToneOut,
+          sampleAt: samplePreTone,
           blockSize: this.genericParamA,
+          gridLine: this.genericParamB,
           resolution: this.resolutionUniform,
         });
         break;

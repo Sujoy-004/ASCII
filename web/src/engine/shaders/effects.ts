@@ -7,6 +7,7 @@ import {
   fract,
   sin,
   clamp,
+  float,
 } from 'three/tsl';
 
 // 1. Dots
@@ -42,17 +43,34 @@ export const contourShaderNode = (inputs: { colorNode: any; steps: any; lineWidt
   })();
 };
 
-// 3. Blockify
-export const blockifyShaderNode = (inputs: { colorNode: any; blockSize: any; resolution: any }) => {
-  const { colorNode, blockSize, resolution } = inputs;
+// 3. Blockify (Pixelation / Mosaic with optional grid line)
+export const blockifyShaderNode = (inputs: {
+  sampleAt: (uvCoord: any) => any;
+  blockSize: any;
+  gridLine?: any;
+  resolution: any;
+}) => {
+  const { sampleAt, blockSize, gridLine, resolution } = inputs;
   return Fn(() => {
     const st = uv();
     const pixelCoord = st.mul(resolution);
     const b = blockSize.max(2.0);
-    const quantizedPx = floor(pixelCoord.div(b)).mul(b);
-    const cellCenterUV = quantizedPx.add(b.mul(0.5)).div(resolution);
+    const cellCoord = floor(pixelCoord.div(b));
+    const cellCenterPx = cellCoord.mul(b).add(b.mul(0.5));
+    const cellCenterUV = cellCenterPx.div(resolution);
 
-    const baseCol = typeof colorNode === 'function' ? colorNode(cellCenterUV) : colorNode;
+    const baseCol = sampleAt(cellCenterUV);
+
+    if (gridLine) {
+      const cellFrac = fract(pixelCoord.div(b));
+      const borderX = cellFrac.x.lessThan(b.reciprocal()).or(cellFrac.x.greaterThan(float(1.0).sub(b.reciprocal())));
+      const borderY = cellFrac.y.lessThan(b.reciprocal()).or(cellFrac.y.greaterThan(float(1.0).sub(b.reciprocal())));
+      const isBorder = borderX.or(borderY);
+      const gridDim = float(1.0).sub(gridLine.mul(0.5));
+      const finalRGB = isBorder.select(baseCol.rgb.mul(gridDim), baseCol.rgb);
+      return vec4(finalRGB, baseCol.a);
+    }
+
     return vec4(baseCol.rgb, baseCol.a);
   })();
 };

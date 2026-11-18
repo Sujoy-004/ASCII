@@ -3,6 +3,7 @@ import type {
   AsciiSettings,
   Dimensions,
   EffectMode,
+  EffectParams,
   MediaType,
   ThemeMode,
   ToneSettings,
@@ -31,6 +32,10 @@ interface StudioState extends MediaState {
   // Active effect selection (D-02)
   effect: EffectMode;
   setEffect: (effect: EffectMode) => void;
+
+  // Dynamic effect parameters
+  effectParams: EffectParams;
+  updateEffectParam: (key: keyof EffectParams, value: number) => void;
 
   // Pre-tone adjustments (SHADER-03)
   tone: ToneSettings;
@@ -76,6 +81,25 @@ export const DEFAULT_ASCII: AsciiSettings = {
   charAspect: 0.5,
   rampPreset: 'standard',
   customChars: '',
+};
+
+export const DEFAULT_EFFECT_PARAMS: EffectParams = {
+  ditherSteps: 4,
+  ditherSpread: 0.5,
+  halftoneFreq: 50,
+  halftoneAngle: 45,
+  halftoneRadius: 1.0,
+  matrixSpeed: 1.0,
+  matrixDensity: 40,
+  sortThreshold: 0.5,
+  sortSpan: 30,
+  sortDirection: 0,
+  genericA: 12,
+  genericB: 0.2,
+  vhsScanlineIntensity: 0.2,
+  vhsAberration: 0.5,
+  vhsNoiseIntensity: 0.1,
+  vhsCurvature: 0.0,
 };
 
 const DEFAULT_PAN: Pan = { x: 0, y: 0 };
@@ -173,6 +197,10 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
 
   effect: 'ascii',
   setEffect: (effect) => set({ effect }),
+
+  effectParams: DEFAULT_EFFECT_PARAMS,
+  updateEffectParam: (key, value) =>
+    set((s) => ({ effectParams: { ...s.effectParams, [key]: value } })),
 
   tone: DEFAULT_TONE,
   updateTone: (patch) => set((s) => ({ tone: { ...s.tone, ...patch } })),
