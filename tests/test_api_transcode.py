@@ -135,7 +135,7 @@ def test_validate_assembled_media(tmp_path):
         "format": {"duration": "10.0"},
     })
 
-    with patch("subprocess.run") as mock_run:
+    with patch("shutil.which", return_value="/usr/bin/ffprobe"), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout=mock_probe_output, stderr="", returncode=0)
         res = validate_assembled_media(str(valid_file), "mp4", max_duration=60.0)
         assert res["width"] == 1920
@@ -147,7 +147,7 @@ def test_validate_assembled_media(tmp_path):
         "streams": [{"width": 1920, "height": 1080, "duration": "95.0"}],
         "format": {"duration": "95.0"},
     })
-    with patch("subprocess.run") as mock_run:
+    with patch("shutil.which", return_value="/usr/bin/ffprobe"), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout=mock_long_probe, stderr="", returncode=0)
         with pytest.raises(ValueError, match="exceeds maximum allowed"):
             validate_assembled_media(str(valid_file), "mp4", max_duration=60.0)
@@ -157,7 +157,7 @@ def test_validate_assembled_media(tmp_path):
         "streams": [{"width": 1920, "height": 1080, "duration": "5.0"}],
         "format": {"duration": "5.0"},
     })
-    with patch("subprocess.run") as mock_run:
+    with patch("shutil.which", return_value="/usr/bin/ffprobe"), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout=mock_hi_res_gif, stderr="", returncode=0)
         with pytest.raises(ValueError, match="exceeds 720p limit"):
             validate_assembled_media(str(valid_file), "gif", max_duration=15.0)
