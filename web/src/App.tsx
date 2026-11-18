@@ -13,33 +13,52 @@ export default function App() {
   const theme = useStudioStore((s) => s.theme);
   const zoom = useStudioStore((s) => s.zoom);
   const dimensions = useStudioStore((s) => s.dimensions);
+  const setLeftCollapsed = useStudioStore((s) => s.setLeftCollapsed);
+  const setRightCollapsed = useStudioStore((s) => s.setRightCollapsed);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setLeftCollapsed(true);
+        setRightCollapsed(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [setLeftCollapsed, setRightCollapsed]);
+
   return (
     <div className="flex h-full w-full flex-col bg-base text-default">
-      <header className="flex h-6 shrink-0 items-center justify-between border-b border-hairline px-2 text-control text-dim">
-        <span>rgb://fx / grainrad v1.4.2 [gpu]</span>
-        <span>
-          untitled studio <span className="text-highlight">● synced</span>
+      <header
+        className="flex h-6 shrink-0 items-center justify-between border-b border-hairline px-2 text-control text-dim select-none"
+        role="banner"
+      >
+        <span className="truncate">rgb-ascii studio v0.1.0 [webgpu]</span>
+        <span className="hidden sm:inline">
+          local session <span className="text-highlight">● offline-ready</span>
         </span>
-        <span>grainrad mono</span>
+        <span className="tabular-nums">ascii studio</span>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <LeftRail />
         <CenterStage />
         <RightRail />
       </div>
 
-      <footer className="flex h-6 shrink-0 items-center justify-between border-t border-hairline px-2 text-control text-dim">
-        <span className="tabular-nums">
+      <footer
+        className="flex h-6 shrink-0 items-center justify-between border-t border-hairline px-2 text-control text-dim select-none"
+        role="contentinfo"
+      >
+        <span className="tabular-nums truncate">
           zoom {Math.round(zoom * 100)}%
           {dimensions ? ` · ${dimensions.width}×${dimensions.height}` : ''}
         </span>
-        <span>profile rec.601 linear</span>
+        <span className="truncate">rec.601 linear</span>
       </footer>
     </div>
   );

@@ -10,7 +10,7 @@
   --bg-active: #0f0f0f;
   --bg-raised: #151515;
   --border-hairline: #222222;
-  --text-dim: #555555;
+  --text-dim: #777777;
   --text-default: #888888;
   --text-highlight: #cccccc;
   --text-max: #ffffff;
@@ -42,7 +42,7 @@
   --bg-active: #eeeeee;
   --bg-raised: #e4e4e4;
   --border-hairline: #cccccc;
-  --text-dim: #999999;
+  --text-dim: #767676;
   --text-default: #666666;
   --text-highlight: #333333;
   --text-max: #000000;
@@ -89,10 +89,10 @@ body {
   overflow: hidden; /* fixed shell — no page scroll; Center Stage scrolls/zooms internally */
 }
 
-/* Focus is expressed by a background step only — no outline ring, no color. */
+/* Focus indicator complies with WCAG 2.4.7 (Focus Visible) and WCAG 1.4.11 */
 :focus-visible {
-  outline: none;
-  background: var(--bg-active);
+  outline: 2px solid var(--text-highlight);
+  outline-offset: 1px;
 }
 
 /* Square corners everywhere; keep Tailwind radius utilities inert. */
