@@ -1,25 +1,29 @@
 <div align="center">
 
-# ◆ RGB ASCII Video Renderer
+# ◆ RGB ASCII & Retro FX Studio
 
-**A real-time terminal video player that converts RGB video frames into
-colored ASCII art using Python, FFmpeg, and ANSI True Color — while playing
-the source audio alongside.**
+**Real-time retro visual effects and ASCII studio for images, videos, and live webcam.**
 
-<sub>Python · FFmpeg · ANSI 24-bit True Color · Standard-Library Only</sub>
+🌐 **Live Web App:** [https://rgb-ascii.pages.dev](https://rgb-ascii.pages.dev)
 
+<sub>WebGPU · React 19 · TypeScript · Python · FastAPI · FFmpeg · ANSI True Color</sub>
+
+<a href="https://rgb-ascii.pages.dev"><img src="https://img.shields.io/badge/Live%20Studio-rgb--ascii.pages.dev-00f0ff?style=for-the-badge&logo=cloudflarepages&logoColor=black"></a>
 <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10+-212529?style=for-the-badge&logo=python&logoColor=white"></a>
 <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFmpeg-343A40?style=for-the-badge&logo=ffmpeg&logoColor=white"></a>
-<a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFplay-Audio-495057?style=for-the-badge&logo=ffmpeg&logoColor=white"></a>
 <a href="https://github.com/Sujoy-004/ASCII"><img src="https://img.shields.io/badge/ANSI%20True%20Color-7A838D?style=for-the-badge&logo=terminal&logoColor=white"></a>
 
-<sub>in: local video file — out: live colored ASCII in your terminal</sub>
+<sub>in: images, video files, or live webcam — out: instant retro shader art in your browser or terminal</sub>
 
 </div>
 
 ---
 
-## ◆ What It Is
+## ◆ About
+
+**RGB ASCII & Retro FX Studio** is a real-time retro visual effects and ASCII suite for images, videos, and live webcam streams.
+
+Launch the instant browser studio at **[https://rgb-ascii.pages.dev](https://rgb-ascii.pages.dev)** to transform media with WebGPU-accelerated shaders (ASCII, dithering, halftone, CRT/VHS scanlines, matrix rain, and color grading) and export high-resolution videos, animated GIFs, or ANSI art. A Python CLI and FastAPI backend are also included for headless rendering and cloud-ready processing.
 
 Feed a local video file to a single command, and the terminal becomes the
 screen: every pixel is turned into a character whose **luminance selects the
