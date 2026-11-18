@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
+import * as THREE from 'three/webgpu';
 import { useStudioStore, registerVideoElement } from '../../store/useStudioStore';
+import { StudioPipeline } from '../../engine/Pipeline';
 import ViewportHUD from '../canvas/ViewportHUD';
 import Dropzone from '../canvas/Dropzone';
 
 /**
  * Center Stage (D-03): canvas viewport with a hardware-accelerated pan/zoom
- * CSS transform layer and the floating ViewportHUD. Pointer drag pans the
- * stage; HUD buttons control zoom and reset. Media renders at its NATIVE
- * uncapped pixel size (max-w-none overrides Tailwind preflight downscaling);
- * the zoom HUD exists to navigate it.
+ * CSS transform layer, Three.js WebGPU / WebGL2 shader pipeline, and ViewportHUD.
  *
  * Stage-wide drag-and-drop (D-04, MEDIA-01): dropping a file anywhere over
  * the stage loads it; the standby dropzone card shows while no media is
@@ -21,24 +20,98 @@ export default function CenterStage() {
   const setPan = useStudioStore((s) => s.setPan);
   const mediaType = useStudioStore((s) => s.mediaType);
   const mediaUrl = useStudioStore((s) => s.mediaUrl);
-  const mediaName = useStudioStore((s) => s.mediaName);
   const dimensions = useStudioStore((s) => s.dimensions);
   const loadMediaFile = useStudioStore((s) => s.loadMediaFile);
   const setDimensions = useStudioStore((s) => s.setDimensions);
+  const tone = useStudioStore((s) => s.tone);
+  const ascii = useStudioStore((s) => s.ascii);
+  const effect = useStudioStore((s) => s.effect);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pipelineRef = useRef<StudioPipeline | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
     null,
   );
   const [dragOver, setDragOver] = useState(false);
   const webcamActive = mediaType === 'webcam';
-  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // MEDIA-02: register the live webcam <video> with the store so
-  // startWebcam() can attach the MediaStream (and detach on unmount).
-  // T-02-04: if this stage unmounts while the feed is live, stop the tracks
-  // immediately — the camera indicator must never stay lit. In every other
-  // path (stop button, media replacement) the stream is already null and
-  // this is a no-op.
+  // 1. Initialize Pipeline on mount
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const pipeline = new StudioPipeline({ canvas });
+    pipelineRef.current = pipeline;
+
+    let animId: number;
+    const startTime = performance.now();
+
+    const loop = (time: number) => {
+      pipeline.render((time - startTime) * 0.001);
+      animId = requestAnimationFrame(loop);
+    };
+
+    pipeline.init().then(() => {
+      animId = requestAnimationFrame(loop);
+    }).catch((err) => {
+      console.error('Failed to initialize studio shader pipeline:', err);
+    });
+
+    return () => {
+      cancelAnimationFrame(animId);
+      pipeline.dispose();
+      pipelineRef.current = null;
+    };
+  }, []);
+
+  // 2. Synchronize tone and ascii settings to pipeline
+  useEffect(() => {
+    if (pipelineRef.current) {
+      pipelineRef.current.updateTone(tone);
+    }
+  }, [tone]);
+
+  useEffect(() => {
+    if (pipelineRef.current) {
+      pipelineRef.current.updateAscii(ascii);
+    }
+  }, [ascii]);
+
+  useEffect(() => {
+    if (pipelineRef.current) {
+      pipelineRef.current.setEffect(effect);
+    }
+  }, [effect]);
+
+  // 3. Synchronize media texture to pipeline
+  useEffect(() => {
+    const pipeline = pipelineRef.current;
+    if (!pipeline) return;
+
+    if (mediaType === 'image' && mediaUrl && dimensions) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const tex = new THREE.Texture(img);
+        tex.needsUpdate = true;
+        pipeline.setSourceTexture(tex);
+        pipeline.resize(dimensions.width, dimensions.height);
+      };
+      img.src = mediaUrl;
+    } else if (mediaType === 'video' && videoRef.current && dimensions) {
+      const tex = new THREE.VideoTexture(videoRef.current);
+      pipeline.setSourceTexture(tex);
+      pipeline.resize(dimensions.width, dimensions.height);
+    } else if (webcamActive && videoRef.current && dimensions) {
+      const tex = new THREE.VideoTexture(videoRef.current);
+      pipeline.setSourceTexture(tex);
+      pipeline.resize(dimensions.width, dimensions.height);
+    }
+  }, [mediaType, mediaUrl, dimensions, webcamActive]);
+
+  // Register live webcam / video elements
   useEffect(() => {
     registerVideoElement(videoRef.current);
     return () => {
@@ -48,7 +121,7 @@ export default function CenterStage() {
   }, [webcamActive]);
 
   const onDragOver = (e: ReactDragEvent<HTMLElement>) => {
-    e.preventDefault(); // required to allow drop
+    e.preventDefault();
     setDragOver(true);
   };
 
@@ -111,39 +184,28 @@ export default function CenterStage() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
       >
-        {/* WebGPU/WebGL engine canvas mounts here in plan 02-03. */}
-        {mediaType === null && <canvas className="block bg-base" aria-label="Media viewport canvas" />}
+        {/* WebGPU / WebGL2 Engine Canvas */}
+        <canvas
+          ref={canvasRef}
+          className="block bg-base"
+          style={{
+            width: dimensions ? `${dimensions.width}px` : '100%',
+            height: dimensions ? `${dimensions.height}px` : '100%',
+            display: mediaType ? 'block' : 'none',
+          }}
+          aria-label="Media viewport canvas"
+        />
 
-        {mediaType === 'image' && mediaUrl && dimensions && (
-          <img
-            src={mediaUrl}
-            alt={mediaName ?? 'loaded image'}
-            width={dimensions.width}
-            height={dimensions.height}
-            draggable={false}
-            className="block max-w-none select-none"
-            style={{ width: dimensions.width, height: dimensions.height }}
-          />
-        )}
-
-        {mediaType === 'video' && mediaUrl && dimensions && (
-          <video
-            src={mediaUrl}
-            controls
-            loop
-            autoPlay
-            className="block max-w-none"
-            style={{ width: dimensions.width, height: dimensions.height }}
-          />
-        )}
-
-        {webcamActive && (
+        {/* Hidden video playback source for video and webcam */}
+        {mediaType === 'video' && mediaUrl && (
           <video
             ref={videoRef}
+            src={mediaUrl}
+            loop
             autoPlay
             playsInline
             muted
-            className="block max-w-none"
+            className="hidden"
             onLoadedMetadata={(e) => {
               const el = e.currentTarget;
               if (el.videoWidth && el.videoHeight) {
@@ -153,7 +215,23 @@ export default function CenterStage() {
           />
         )}
 
-        <Dropzone dragActive={dragOver} />
+        {webcamActive && (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="hidden"
+            onLoadedMetadata={(e) => {
+              const el = e.currentTarget;
+              if (el.videoWidth && el.videoHeight) {
+                setDimensions({ width: el.videoWidth, height: el.videoHeight });
+              }
+            }}
+          />
+        )}
+
+        {mediaType === null && <Dropzone dragActive={dragOver} />}
       </div>
 
       {dragOver && (

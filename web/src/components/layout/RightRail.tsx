@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useStudioStore } from '../../store/useStudioStore';
 import type { RampPreset } from '../../types/studio';
+import ToneControls from '../panels/ToneControls';
 
 /**
  * Right docked rail (280px) — inspector groups (D-03): parameter inspector,
@@ -119,78 +120,6 @@ function AsciiParams() {
   );
 }
 
-/** Pre-tone sliders (brightness/contrast/saturation/hue/gamma/invert — SHADER-03). */
-function ToneControls() {
-  const tone = useStudioStore((s) => s.tone);
-  const updateTone = useStudioStore((s) => s.updateTone);
-  const resetTone = useStudioStore((s) => s.resetTone);
-
-  return (
-    <div className="flex flex-col gap-2 px-4 pb-3">
-      <SliderRow
-        label="brightness"
-        value={tone.brightness}
-        min={0}
-        max={2}
-        step={0.01}
-        format={(v) => v.toFixed(2)}
-        onChange={(brightness) => updateTone({ brightness })}
-      />
-      <SliderRow
-        label="contrast"
-        value={tone.contrast}
-        min={0}
-        max={2}
-        step={0.01}
-        format={(v) => v.toFixed(2)}
-        onChange={(contrast) => updateTone({ contrast })}
-      />
-      <SliderRow
-        label="saturation"
-        value={tone.saturation}
-        min={0}
-        max={2}
-        step={0.01}
-        format={(v) => v.toFixed(2)}
-        onChange={(saturation) => updateTone({ saturation })}
-      />
-      <SliderRow
-        label="hue rotation"
-        value={tone.hueRotation}
-        min={-180}
-        max={180}
-        step={1}
-        format={(v) => `${v}°`}
-        onChange={(hueRotation) => updateTone({ hueRotation })}
-      />
-      <SliderRow
-        label="gamma"
-        value={tone.gamma}
-        min={0.1}
-        max={3}
-        step={0.01}
-        format={(v) => v.toFixed(2)}
-        onChange={(gamma) => updateTone({ gamma })}
-      />
-      <button
-        type="button"
-        onClick={() => updateTone({ invert: !tone.invert })}
-        className="flex h-6 items-center justify-between text-control hover:bg-active"
-      >
-        <span>invert</span>
-        <span className="tabular-nums text-highlight">{tone.invert ? '● on' : '○ off'}</span>
-      </button>
-      <button
-        type="button"
-        onClick={resetTone}
-        className="h-6 bg-raised text-left text-control hover:bg-active"
-      >
-        reset tone
-      </button>
-    </div>
-  );
-}
-
 /**
  * Export drawer container (D-08). Buttons render per the approved design but
  * are disabled until plan 02-05 wires the export engine — no dead handlers.
@@ -293,4 +222,3 @@ function RailButton({
     </button>
   );
 }
-
