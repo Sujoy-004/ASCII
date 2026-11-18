@@ -29,4 +29,5 @@ AGENTS.md
 .claude/
 .github/
 .gsd/
+.planning/tmp/
 session-*.md
