@@ -174,6 +174,15 @@ export class StudioPipeline {
     this.rebuildPipeline();
   }
 
+  clearSource(): void {
+    if (this.sourceTexture) {
+      this.sourceTexture.dispose();
+      this.sourceTexture = null;
+    }
+    this.sourceTextureNode = null;
+    this.rebuildPipeline();
+  }
+
   updateTone(settings: ToneSettings): void {
     this.brightnessUniform.value = settings.brightness;
     this.contrastUniform.value = settings.contrast;
@@ -417,7 +426,10 @@ export class StudioPipeline {
     this.timeUniform.value = timeSeconds;
 
     if (this.sourceTexture instanceof THREE.VideoTexture) {
-      this.sourceTexture.needsUpdate = true;
+      const vid = this.sourceTexture.image as HTMLVideoElement | undefined;
+      if (vid && vid.readyState >= 2) {
+        this.sourceTexture.needsUpdate = true;
+      }
     }
 
     this.renderer.render(this.scene, this.camera);

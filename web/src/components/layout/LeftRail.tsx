@@ -21,6 +21,7 @@ import {
   CloudFog,
   Network,
   Palette,
+  X,
 } from 'lucide-react';
 import { useStudioStore } from '../../store/useStudioStore';
 import type { EffectMode, MediaType } from '../../types/studio';
@@ -67,6 +68,7 @@ export default function LeftRail() {
   const ascii = useStudioStore((s) => s.ascii);
   const updateAscii = useStudioStore((s) => s.updateAscii);
   const mediaType = useStudioStore((s) => s.mediaType);
+  const mediaName = useStudioStore((s) => s.mediaName);
   const dimensions = useStudioStore((s) => s.dimensions);
   const leftCollapsed = useStudioStore((s) => s.leftCollapsed);
   const toggleLeftRail = useStudioStore((s) => s.toggleLeftRail);
@@ -74,6 +76,7 @@ export default function LeftRail() {
   const startWebcam = useStudioStore((s) => s.startWebcam);
   const stopWebcam = useStudioStore((s) => s.stopWebcam);
   const openFileBrowser = useStudioStore((s) => s.openFileBrowser);
+  const clearMedia = useStudioStore((s) => s.clearMedia);
 
   if (leftCollapsed) {
     return (
@@ -122,9 +125,10 @@ export default function LeftRail() {
                   // MEDIA-02: webcam source toggles the live feed on/off.
                   if (mediaType === 'webcam') stopWebcam();
                   else void startWebcam();
-                } else {
-                  // image/video sources open the shared file picker.
-                  openFileBrowser();
+                } else if (type === 'image') {
+                  openFileBrowser('image');
+                } else if (type === 'video') {
+                  openFileBrowser('video');
                 }
               }}
             />
@@ -136,6 +140,20 @@ export default function LeftRail() {
             {dimensions ? `${dimensions.width}x${dimensions.height}` : '—'}
           </span>
         </div>
+        {mediaType && (
+          <div className="mt-2 flex items-center justify-between border-t border-hairline pt-2 text-control">
+            <span className="truncate text-dim max-w-[130px]">{mediaName || mediaType}</span>
+            <button
+              type="button"
+              onClick={clearMedia}
+              title="Close media and return to standby"
+              className="flex items-center gap-1 text-dim hover:text-highlight hover:bg-active px-1.5 h-5 bg-raised transition-colors"
+            >
+              <X size={10} strokeWidth={2} />
+              <span>eject</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <SectionHeader title="pipeline mode" state={`${EFFECT_LIST.length}`} />

@@ -57,13 +57,26 @@ interface StudioState extends MediaState {
   toggleRightRail: () => void;
 
   // Media ingestion (MEDIA-01, MEDIA-02, D-04)
-  loadMediaFile: (file: File) => Promise<void>;
+  loadMediaFile: (file: File, expectedType?: 'image' | 'video') => Promise<void>;
   startWebcam: () => Promise<void>;
   stopWebcam: () => void;
   clearMedia: () => void;
-  openFileBrowser: () => void;
+  openFileBrowser: (filter?: 'image' | 'video') => void;
   setMedia: (media: Partial<MediaState>) => void;
   setDimensions: (dimensions: Dimensions) => void;
+
+  // Video playback controls
+  isPlaying: boolean;
+  isMuted: boolean;
+  playbackTime: number;
+  duration: number;
+  setIsPlaying: (playing: boolean) => void;
+  setIsMuted: (muted: boolean) => void;
+  setPlaybackTime: (time: number) => void;
+  setDuration: (duration: number) => void;
+  togglePlay: () => void;
+  stopVideo: () => void;
+  toggleMute: () => void;
 }
 
 export const DEFAULT_TONE: ToneSettings = {
@@ -135,9 +148,9 @@ export function registerVideoElement(el: HTMLVideoElement | null): void {
  * open the same browser picker (single ingestion entry point through
  * loadMediaFile).
  */
-let browseHandler: (() => void) | null = null;
+let browseHandler: ((filter?: 'image' | 'video') => void) | null = null;
 
-export function registerBrowseHandler(fn: (() => void) | null): void {
+export function registerBrowseHandler(fn: ((filter?: 'image' | 'video') => void) | null): void {
   browseHandler = fn;
 }
 
@@ -217,12 +230,58 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
   toggleLeftRail: () => set((s) => ({ leftCollapsed: !s.leftCollapsed })),
   toggleRightRail: () => set((s) => ({ rightCollapsed: !s.rightCollapsed })),
 
+  // Video playback
+  isPlaying: false,
+  isMuted: false,
+  playbackTime: 0,
+  duration: 0,
+  setIsPlaying: (playing) => set({ isPlaying: playing }),
+  setIsMuted: (muted) => {
+    if (registeredVideo) registeredVideo.muted = muted;
+    set({ isMuted: muted });
+  },
+  setPlaybackTime: (time) => set({ playbackTime: time }),
+  setDuration: (duration) => set({ duration }),
+  togglePlay: () => {
+    if (!registeredVideo) return;
+    if (registeredVideo.paused) {
+      registeredVideo.play().then(() => set({ isPlaying: true })).catch(() => undefined);
+    } else {
+      registeredVideo.pause();
+      set({ isPlaying: false });
+    }
+  },
+  stopVideo: () => {
+    if (!registeredVideo) return;
+    registeredVideo.pause();
+    registeredVideo.currentTime = 0;
+    set({ isPlaying: false, playbackTime: 0 });
+  },
+  toggleMute: () => {
+    if (!registeredVideo) return;
+    const nextMuted = !registeredVideo.muted;
+    registeredVideo.muted = nextMuted;
+    set({ isMuted: nextMuted });
+  },
+
   /** Image/video ingestion via local blob URL — same-origin, never tainted (Pitfall 2). */
-  loadMediaFile: async (file) => {
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
+  loadMediaFile: async (file, expectedType) => {
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const imageExts = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
+    const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi'];
+    const isImage = file.type.startsWith('image/') || imageExts.includes(ext);
+    const isVideo = file.type.startsWith('video/') || videoExts.includes(ext);
+
+    if (expectedType === 'image' && !isImage) {
+      alert(`"${file.name}" is not an image file. Please select a PNG, JPG, WebP, or GIF image.`);
+      return;
+    }
+    if (expectedType === 'video' && !isVideo) {
+      alert(`"${file.name}" is not a video file. Please select an MP4 or WebM video.`);
+      return;
+    }
     if (!isImage && !isVideo) {
-      console.warn(`Unsupported media type: ${file.type || file.name}`);
+      alert(`Unsupported file format "${file.name}". Please upload an image or video.`);
       return;
     }
 
@@ -240,6 +299,9 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
         mediaUrl: url,
         mediaName: file.name,
         dimensions,
+        isPlaying: isVideo,
+        playbackTime: 0,
+        duration: 0,
       });
       get().resetHUD(); // viewport fit: 100% zoom, centered
     } catch (err) {
@@ -285,23 +347,34 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
   /** Return the studio to blank-slate standby (D-04). */
   clearMedia: () => {
     detachMediaPlayback();
-    if (registeredVideo) registeredVideo.removeAttribute('src');
+    if (registeredVideo) {
+      try {
+        registeredVideo.pause();
+        registeredVideo.removeAttribute('src');
+        registeredVideo.load();
+      } catch {
+        // ignore
+      }
+    }
     set({
       mediaType: null,
       mediaUrl: null,
       mediaName: null,
       dimensions: null,
+      isPlaying: false,
+      playbackTime: 0,
+      duration: 0,
     });
     get().resetHUD();
   },
 
   /** Open the shared hidden file input registered by Dropzone. */
-  openFileBrowser: () => {
+  openFileBrowser: (filter?: 'image' | 'video') => {
     if (!browseHandler) {
       console.warn('File browser not registered yet (Dropzone not mounted)');
       return;
     }
-    browseHandler();
+    browseHandler(filter);
   },
 
   setMedia: (media) => set(media),
