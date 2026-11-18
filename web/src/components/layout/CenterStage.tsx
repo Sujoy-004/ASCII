@@ -27,6 +27,11 @@ export default function CenterStage() {
   const ascii = useStudioStore((s) => s.ascii);
   const effect = useStudioStore((s) => s.effect);
   const effectParams = useStudioStore((s) => s.effectParams);
+  const isMuted = useStudioStore((s) => s.isMuted);
+  const setIsMuted = useStudioStore((s) => s.setIsMuted);
+  const setIsPlaying = useStudioStore((s) => s.setIsPlaying);
+  const setPlaybackTime = useStudioStore((s) => s.setPlaybackTime);
+  const setDuration = useStudioStore((s) => s.setDuration);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pipelineRef = useRef<StudioPipeline | null>(null);
@@ -121,17 +126,21 @@ export default function CenterStage() {
       tex.colorSpace = THREE.SRGBColorSpace;
       pipeline.setSourceTexture(tex);
       pipeline.resize(dimensions.width, dimensions.height);
+    } else if (!mediaType) {
+      pipeline.clearSource();
     }
   }, [mediaType, mediaUrl, dimensions, webcamActive]);
 
   // Register live webcam / video elements
   useEffect(() => {
-    registerVideoElement(videoRef.current);
+    if (mediaType === 'video' || webcamActive) {
+      registerVideoElement(videoRef.current);
+    }
     return () => {
       registerVideoElement(null);
-      useStudioStore.getState().stopWebcam();
+      if (webcamActive) useStudioStore.getState().stopWebcam();
     };
-  }, [webcamActive]);
+  }, [mediaType, webcamActive]);
 
   const onDragOver = (e: ReactDragEvent<HTMLElement>) => {
     e.preventDefault();
@@ -229,14 +238,28 @@ export default function CenterStage() {
             loop
             autoPlay
             playsInline
-            muted
-            className="hidden"
+            muted={isMuted}
+            className="pointer-events-none absolute opacity-0 w-0 h-0"
             onLoadedMetadata={(e) => {
               const el = e.currentTarget;
               if (el.videoWidth && el.videoHeight) {
                 setDimensions({ width: el.videoWidth, height: el.videoHeight });
               }
+              setDuration(el.duration || 0);
+              el.play()
+                .then(() => setIsPlaying(true))
+                .catch((err) => {
+                  console.warn('Autoplay unmuted blocked by browser policy:', err);
+                  el.muted = true;
+                  setIsMuted(true);
+                  el.play().then(() => setIsPlaying(true)).catch(() => undefined);
+                });
             }}
+            onTimeUpdate={(e) => {
+              setPlaybackTime(e.currentTarget.currentTime || 0);
+            }}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
           />
         )}
 
