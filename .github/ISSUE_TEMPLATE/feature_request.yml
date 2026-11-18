@@ -1,0 +1,38 @@
+name: Feature Request
+description: Suggest an idea or enhancement for the studio or terminal CLI
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome ideas for new retro shaders, terminal capabilities, export formats, or performance enhancements.
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Target Subsystem
+      options:
+        - Web Studio (New shader, control, or UX feature)
+        - Terminal Player (Python CLI feature or preset)
+        - Export Backend (New transcode preset or container format)
+        - Performance / Architecture
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Motivation
+      description: Is your feature request related to a problem or limitation?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered.
