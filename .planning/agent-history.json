@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "max_entries": 50,
+  "entries": [
+    {
+      "agent_id": "ses_e18911defffedfAcfSzlYjfoOf",
+      "task_description": "Execute plan 01-03 (gap closure: real-TTY playback) sequential on main tree",
+      "phase": "01",
+      "plan": "01-03",
+      "segment": null,
+      "timestamp": "2026-11-17T02:56:21.292Z",
+      "status": "spawned",
+      "completion_timestamp": null
+    }
+  ]
+}
