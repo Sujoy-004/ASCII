@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+
+/*
+ * Grainrad Mono Studio tokens — from DESIGN.md (phase 02-01, approved r2).
+ * Tokens are CSS custom properties on :root; components must not hardcode raw
+ * values. Dark is the default theme; light overrides via [data-theme='light'].
+ */
+:root {
+  --bg-base: #0a0a0a;
+  --bg-active: #0f0f0f;
+  --bg-raised: #151515;
+  --border-hairline: #222222;
+  --text-dim: #555555;
+  --text-default: #888888;
+  --text-highlight: #cccccc;
+  --text-max: #ffffff;
+  --overlay-drag: rgba(10, 10, 10, 0.6);
+  --overlay-scrim: rgba(0, 0, 0, 0.55);
+
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --radius: 0;
+
+  --dur-fast: 100ms;
+  --dur-med: 160ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* CRT texture — empty standby state only, pointer-events: none */
+  --scanline: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.02) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+/* Light theme: same greyscale ramp, inverted. No hue is ever introduced. */
+[data-theme='light'] {
+  --bg-base: #f5f5f5;
+  --bg-active: #eeeeee;
+  --bg-raised: #e4e4e4;
+  --border-hairline: #cccccc;
+  --text-dim: #999999;
+  --text-default: #666666;
+  --text-highlight: #333333;
+  --text-max: #000000;
+  --overlay-drag: rgba(245, 245, 245, 0.6);
+  --overlay-scrim: rgba(255, 255, 255, 0.55);
+  --scanline: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.02) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+/* Register token-backed colors with Tailwind v4 so utilities like
+   bg-base / text-dim / border-hairline resolve to the custom properties. */
+@theme inline {
+  --color-base: var(--bg-base);
+  --color-active: var(--bg-active);
+  --color-raised: var(--bg-raised);
+  --color-hairline: var(--border-hairline);
+  --color-dim: var(--text-dim);
+  --color-default: var(--text-default);
+  --color-highlight: var(--text-highlight);
+  --color-max: var(--text-max);
+  --font-mono: var(--font-mono);
+  --default-font-family: var(--font-mono);
+  --default-transition-duration: var(--dur-fast);
+  --default-transition-timing-function: var(--ease);
+  --text-control: 12px;
+  --text-value: 12px;
+  --duration-fast: var(--dur-fast);
+  --duration-med: var(--dur-med);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-mono);
+  background: var(--bg-base);
+  color: var(--text-default);
+  overflow: hidden; /* fixed shell — no page scroll; Center Stage scrolls/zooms internally */
+}
+
+/* Focus is expressed by a background step only — no outline ring, no color. */
+:focus-visible {
+  outline: none;
+  background: var(--bg-active);
+}
+
+/* Square corners everywhere; keep Tailwind radius utilities inert. */
+* {
+  border-radius: 0;
+}
+
+/* Slider rows: 1px hairline track, 8px square thumb, no color fill (DESIGN.md §3). */
+input[type='range'][data-slider] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(var(--border-hairline), var(--border-hairline)) center / 100% 1px no-repeat;
+}
+input[type='range'][data-slider]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--text-highlight);
+  border: none;
+  border-radius: 0;
+  cursor: ew-resize;
+}
+input[type='range'][data-slider]::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  background: var(--text-highlight);
+  border: none;
+  border-radius: 0;
+  cursor: ew-resize;
+}
+input[type='range'][data-slider]::-moz-range-track {
+  height: 1px;
+  background: var(--border-hairline);
+}
