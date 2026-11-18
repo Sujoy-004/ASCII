@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rgb-ascii.pages.dev/sitemap.xml
