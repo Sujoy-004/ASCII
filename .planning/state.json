@@ -16,13 +16,13 @@
     {
       "number": "3",
       "name": "Backend API, High-Res Export & Deployment",
-      "status": "pending"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 3 of 3 · 67% · executing"
+    "command": "/gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-11-18T11:40:58.387Z"
+  "updated_at": "2026-11-18T15:33:48.752Z"
 }

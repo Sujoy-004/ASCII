@@ -18,7 +18,7 @@ covered_files:
   - "tests/test_media_errors.py"
   - "tests/test_timestamp_stream.py"
   - "tests/test_tty_sink.py"
-covered_digest: "v4:sha256:69d301e671aaab214f7fd48bc72536214d45ebebc9282dfab545e949ed06ed56"
+covered_digest: "v4:sha256:cb28932cda1d0a45cddcccd87ce22832ee86ba51a2d62153b41b5be3b257f468"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:

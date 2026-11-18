@@ -18,30 +18,37 @@ Instant, real-time retro visual transformations and high-fidelity media export a
 - ✓ Subprocess FFmpeg video decoding with stream error and container diagnostics — existing (`src/video.py`)
 - ✓ Temporal smoothing (`TemporalSmoother`) exponential RGB24 blending — existing (`src/smoothing.py`)
 - ✓ Frame pacing and deadline scheduling models (`FrameClock`, `PlaybackTimeline`) — existing (`src/timing.py`, `src/sync.py`)
+- ✓ Codebase Modernization: headless frame sink protocol, 36-symbol public facade, 100% type/lint health — v1.0 (`src/__init__.py`)
+- ✓ Stitch MCP UI/UX Redesign: monochrome Grainrad-inspired theme tokens, three-column docked studio layout, responsive Viewport HUD — v1.0 (`web/src/`)
+- ✓ Client-Side FX Pipeline: 60 FPS Three.js WebGPU / TSL engine with automatic WebGL2 fallback, dynamic monospace atlas, and 16 retro shaders — v1.0 (`web/src/engine/`)
+- ✓ Multi-Format Media Ingestion: Drag-and-drop local image/video files at native aspect ratios, plus live browser webcam stream via `getUserMedia` — v1.0 (`web/src/components/`)
+- ✓ Client-Side Multi-Format Export: Instant raster PNG/JPEG, monochrome/TrueColor vector SVG, Rec. 601 plain text (`.txt`), and quick WebM/GIF clips — v1.0 (`web/src/export/`)
+- ✓ Production FastAPI Microservice: Turnstile bot protection, Cloudflare CIDR validation, constant-time `X-Job-Token` checks, single-use download tokens, and SlowAPI rate limiting — v1.0 (`src/api/`)
+- ✓ Low-Memory Server Transcoding: Bounded chunk sequencer, Web Audio graph persistence, DPI decoupling (1080p/720p), and low-memory FFmpeg video/GIF transcode (<137MB RSS) — v1.0 (`src/api/transcode.py`)
+- ✓ Git-Driven $0/Month Infrastructure: Cloudflare Pages edge hosting (`wrangler.toml`), Render Python Web Service (`render.yaml`), and Neon PostgreSQL schema scaffolding (`docs/database-schema.sql`) — v1.0
 
-### Active
+### Active (Next Milestone Candidates)
 
-- [ ] **Codebase Modernization**: Audit `src/`, strip dead/terminal-bound code, optimize core math routines, and ensure 100% clean typing (`mypy`) and linting (`ruff`).
-- [ ] **FastAPI Backend Transition**: Repurpose core media algorithms into a clean, modern FastAPI service with endpoints for media upload, frame processing, and FFmpeg video transcoding.
-- [ ] **Client-Side FX Pipeline**: WebGPU / Canvas shaders delivering real-time interactive previews of ASCII art, dithering, halftone, matrix rain, VHS/scanlines, noise, and color adjustments inspired by Grainrad.
-- [ ] **Multi-Format Input**: Support drag-and-drop file ingestion (PNG, JPG, WebP, GIF, MP4, WebM) and live browser webcam feed.
-- [ ] **Comprehensive Export System**: Instant client-side export (PNG, JPEG, SVG, Text/ASCII `.txt`, HTML) plus backend export for rendered MP4 video and animated GIF.
-- [ ] **Stitch MCP UI/UX Redesign**: Modern, polished studio interface designed iteratively using Stitch MCP, with full user review before code implementation.
-- [ ] **Git-Driven $0/Month Infrastructure**: Production configuration via `render.yaml` (Render Web Service for FastAPI) and `wrangler.toml` (Cloudflare Pages for frontend SPA).
-- [ ] **Neon PostgreSQL Scaffolding**: Schema and connection scaffolding for future preset/project persistence, keeping v1 completely operational as a stateless zero-cost tool.
+- [ ] **PERSIST-01**: User accounts and project workspace persistence via Neon Serverless PostgreSQL.
+- [ ] **PERSIST-02**: Community preset sharing gallery allowing artists to publish and clone effect recipes.
+- [ ] **PERSIST-03**: Standalone Three.js 3D embeddable HTML export package.
+- [ ] **PERSIST-04**: Extended retro shader packs (Voronoi crystallization, Audio-reactive scanlines, Pixel sorting enhancements).
 
 ### Out of Scope
 
-- Terminal interactive playback engine — Pivoting entirely to Web platform; terminal-only components (`src/terminal.py`) archived.
+- Terminal interactive playback engine — Pivoted entirely to Web platform; terminal-only components (`src/terminal.py`) archived.
 - Proprietary Grainrad source code or branding duplication — Clean-room functional reproduction of retro shader and export features.
 - Mandatory user auth or paid cloud databases for v1 — Stateless utility first to eliminate cost and setup barriers.
 - Dedicated cloud GPU instances — Real-time processing runs on client hardware (WebGPU/Canvas), exports run on free CPU compute.
+- Unbounded video file uploads — Enforced 60-second video length limit on video exports to guarantee stability within 512MB RAM.
 
 ## Context
 
-- The existing repository is a robust, hermetically tested (~387 tests) Python 3.10+ command-line video player with proven FFmpeg integration, luminance mapping, and color quantization.
-- Grainrad (`grainrad.com`) demonstrates strong demand for accessible, browser-native retro graphics generators with rich parametric controls and diverse export formats.
-- Cloudflare Pages provides unlimited free static hosting and edge speed; Render provides a free tier for Python web services (FastAPI + FFmpeg); Neon provides free serverless PostgreSQL.
+- Shipped Milestone v1.0 with 18,162 lines of code across Python (12,780 LOC) and TypeScript (5,382 LOC).
+- Frontend: React 19, Vite 8, Tailwind CSS v4, Three.js WebGPU / TSL, deployed on Cloudflare Pages (`https://rgb-ascii.pages.dev`).
+- Backend: Python 3.10+, FastAPI, Uvicorn, FFmpeg, deployed on Render Free Web Service (`render.yaml`).
+- Database Scaffolding: Neon Serverless PostgreSQL schema (`docs/database-schema.sql`) prepared for v2 user and preset persistence.
+- Complete suite of 435 automated tests passing with zero regressions, strict type safety (`mypy`), and fast linting (`ruff`).
 
 ## Constraints
 
@@ -55,10 +62,12 @@ Instant, real-time retro visual transformations and high-fidelity media export a
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Hybrid Client FX + Backend Export | Client-side shaders provide 60fps interactive parameter adjustments; backend provides heavy FFmpeg video rendering | — Pending |
-| Pivot Entirely to Web Application | Maximizes user accessibility and aligns with modern creative workflow; terminal player archived | — Pending |
-| Stateless v1 Utility Mode | Eliminates authentication hurdles and database runtime costs, achieving instant $0/month deployment | — Pending |
-| Git-Driven Deployment (`render.yaml` & `wrangler.toml`) | Infrastructure-as-code enables reproducible single-push deployments to Cloudflare and Render | — Pending |
+| Hybrid Client FX + Backend Export | Client-side shaders provide 60fps interactive parameter adjustments; backend provides heavy FFmpeg video rendering | ✓ Good (60fps preview with 0 server CPU; transcode peak RSS 136.29 MB < 512 MB ceiling) |
+| Pivot Entirely to Web Application | Maximizes user accessibility and aligns with modern creative workflow; terminal player archived | ✓ Good (Web studio deployed to Cloudflare Pages; live at rgb-ascii.pages.dev) |
+| Stateless v1 Utility Mode | Eliminates authentication hurdles and database runtime costs, achieving instant $0/month deployment | ✓ Good (Zero cloud bills, instant friction-free access) |
+| Git-Driven Deployment (`render.yaml` & `wrangler.toml`) | Infrastructure-as-code enables reproducible single-push deployments to Cloudflare and Render | ✓ Good (Automated deployment directly from main branch) |
+| Client-Side WebGPU Shaders with TSL | Next-generation WebGPU performance with clean WebGL2 fallback via Three.js node system | ✓ Good (60 FPS rendering across WebGPU and WebGL2 hardware) |
+| DPI Decoupling & Bounded Backpressure | Protects export render quality from viewport zoom and client memory bloat | ✓ Good (Predictable 1080p/720p output with max 5 chunks in flight) |
 
 ## Evolution
 
@@ -78,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-16 after initialization*
+*Last updated: 2026-11-18 after v1.0 milestone*
