@@ -770,12 +770,9 @@ pages_build_output_dir = "./web/dist"
 | A1 | Render free tier Debian Bookworm container includes `ffmpeg` globally on `PATH`. [CITED: render.com/docs] | Standard Stack | If missing in future Render updates, build command must fetch static ffmpeg binary via curl (`static-ffmpeg` fallback documented in research). |
 | A2 | User will configure production Cloudflare Turnstile keys in Render Dashboard environment variables. | Architecture Patterns | If keys are absent in production, server startup will fail fast as designed unless `TURNSTILE_DISABLED=true` is set. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **How should Safari users without WebM VP9 support be accommodated?**
-   - What we know: Safari 16+ supports WebM playback, but MediaRecorder in some older Safari versions defaults to `video/mp4;codecs=avc1`.
-   - What's unclear: Whether Render FFmpeg can ingest fragmented MP4 chunks streamed via MediaRecorder as cleanly as WebM clusters.
-   - Recommendation: The client negotiates supported mime types (`video/webm;codecs=vp9` → `video/webm` → `video/mp4;codecs=avc1`). FFmpeg natively demuxes fragmented MP4; the server assembles chunks sequentially regardless of container type.
+1. **How should Safari users without WebM VP9 support be accommodated?** — RESOLVED: The client negotiates supported mime types (`video/webm;codecs=vp9` → `video/webm;codecs=vp8` → `video/webm` → `video/mp4;codecs=avc1`). FFmpeg natively demuxes fragmented MP4 and WebM chunks identically; the server assembles chunks sequentially regardless of container type. Planned in 03-03 Task 1.
 
 ## Environment Availability
 
