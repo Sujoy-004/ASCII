@@ -71,6 +71,9 @@ export default function LeftRail() {
   const leftCollapsed = useStudioStore((s) => s.leftCollapsed);
   const toggleLeftRail = useStudioStore((s) => s.toggleLeftRail);
   const toggleRightRail = useStudioStore((s) => s.toggleRightRail);
+  const startWebcam = useStudioStore((s) => s.startWebcam);
+  const stopWebcam = useStudioStore((s) => s.stopWebcam);
+  const openFileBrowser = useStudioStore((s) => s.openFileBrowser);
 
   if (leftCollapsed) {
     return (
@@ -109,7 +112,22 @@ export default function LeftRail() {
       <div className="px-4 pb-3">
         <div className="flex gap-1">
           {SOURCES.map(({ type, label, Icon }) => (
-            <SourceButton key={type} type={type} label={label} Icon={Icon} />
+            <SourceButton
+              key={type}
+              type={type}
+              label={label}
+              Icon={Icon}
+              onSelect={() => {
+                if (type === 'webcam') {
+                  // MEDIA-02: webcam source toggles the live feed on/off.
+                  if (mediaType === 'webcam') stopWebcam();
+                  else void startWebcam();
+                } else {
+                  // image/video sources open the shared file picker.
+                  openFileBrowser();
+                }
+              }}
+            />
           ))}
         </div>
         <div className="mt-2 flex items-center justify-between text-dim text-control">
@@ -188,10 +206,12 @@ function SourceButton({
   type,
   label,
   Icon,
+  onSelect,
 }: {
   type: MediaType;
   label: string;
   Icon: typeof ImageIcon;
+  onSelect: () => void;
 }) {
   const mediaType = useStudioStore((s) => s.mediaType);
   return (
@@ -199,6 +219,14 @@ function SourceButton({
       type="button"
       data-source={type}
       aria-pressed={mediaType === type}
+      title={
+        type === 'webcam'
+          ? mediaType === 'webcam'
+            ? 'stop webcam'
+            : 'start webcam'
+          : `browse ${label} file`
+      }
+      onClick={onSelect}
       className={`flex h-6 flex-1 items-center justify-center gap-1 text-control transition-colors duration-fast ${
         mediaType === type ? 'bg-active text-highlight' : 'bg-raised text-default hover:bg-active'
       }`}
