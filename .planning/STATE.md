@@ -68,6 +68,7 @@ Progress: [██████████] 100% (Phases 1, 2 & 3 Complete)
 |------|------|--------|-------------|
 | 20261118-modernize-web-guidance | 2026-11-18 | complete ✓ | Modernize Web Platform Patterns via Google Chrome Modern Web Guidance |
 | 20261118-cloudflare-pages-dns-fix | 2026-11-18 | complete ✓ | Resolve DNS_PROBE_POSSIBLE by Creating and Deploying Cloudflare Pages Project |
+| 20261118-fix-broken-tv-horizontal-lines | 2026-11-18 | complete ✓ | Fix Horizontal Scanlines and Broken TV Artifacts on Video Playback |
 
 ## Accumulated Context
 

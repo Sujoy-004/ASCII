@@ -400,16 +400,19 @@ export class StudioPipeline {
       gradedOut = vec4(lum.mul(0.0), lum.mul(0.94), lum.mul(1.0), effectOut.a);
     }
 
-    // Stage 4: Post-FX Overlay
-    const finalOut = vhsShaderNode({
-      colorNode: gradedOut,
-      scanlineIntensity: this.vhsScanlineIntensity,
-      scanlineFrequency: this.vhsScanlineFrequency,
-      aberration: this.vhsAberration,
-      noiseIntensity: this.vhsNoiseIntensity,
-      time: this.timeUniform,
-      curvature: this.vhsCurvature,
-    });
+    // Stage 4: Post-FX Overlay (Applied when VHS mode is active)
+    let finalOut: any = gradedOut;
+    if (this.activeEffect === 'vhs') {
+      finalOut = vhsShaderNode({
+        colorNode: gradedOut,
+        scanlineIntensity: this.vhsScanlineIntensity,
+        scanlineFrequency: this.vhsScanlineFrequency,
+        aberration: this.vhsAberration,
+        noiseIntensity: this.vhsNoiseIntensity,
+        time: this.timeUniform,
+        curvature: this.vhsCurvature,
+      });
+    }
 
     this.displayMaterial.colorNode = finalOut;
     this.displayMaterial.needsUpdate = true;

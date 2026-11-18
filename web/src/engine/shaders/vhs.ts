@@ -61,8 +61,8 @@ export const vhsShaderNode = (inputs: VhsNodeInputs) => {
     // 2. Chromatic Aberration: shift red channel left, blue channel right
     const rShift = aberration;
     const bShift = aberration.negate();
-    const rCol = baseRGB.r.add(sin(st.y.mul(100.0).add(time.mul(10.0))).mul(rShift));
-    const bCol = baseRGB.b.add(sin(st.y.mul(100.0).add(time.mul(10.0))).mul(bShift));
+    const rCol = clamp(baseRGB.r.add(sin(st.y.mul(100.0).add(time.mul(10.0))).mul(rShift)), 0.0, 1.0);
+    const bCol = clamp(baseRGB.b.add(sin(st.y.mul(100.0).add(time.mul(10.0))).mul(bShift)), 0.0, 1.0);
     const rgbWithAberration: any = vec3(rCol, baseRGB.g, bCol);
 
     // 3. Scanline simulation: sin wave across vertical axis

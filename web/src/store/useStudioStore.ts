@@ -109,8 +109,8 @@ export const DEFAULT_EFFECT_PARAMS: EffectParams = {
   sortDirection: 0,
   genericA: 12,
   genericB: 0.2,
-  vhsScanlineIntensity: 0.2,
-  vhsAberration: 0.5,
+  vhsScanlineIntensity: 0.35,
+  vhsAberration: 0.1,
   vhsNoiseIntensity: 0.1,
   vhsCurvature: 0.0,
 };
