@@ -48,6 +48,7 @@ export const exportApi = {
     const res = await fetch(`${API_BASE}/api/health`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
       throw new Error(`Health ping failed: HTTP ${res.status}`);
@@ -66,6 +67,7 @@ export const exportApi = {
         Accept: 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (res.status === 503) {
@@ -159,7 +161,7 @@ export const exportApi = {
     clipDuration = 0.0,
   ): Promise<{ status: string }> {
     const formData = new FormData();
-    formData.append('file', file, file.name);
+    formData.append('file', file, (file as File).name || 'audio.mp4');
 
     const res = await fetch(`${API_BASE}/api/export/${encodeURIComponent(jobId)}/source-audio`, {
       method: 'POST',
@@ -169,6 +171,7 @@ export const exportApi = {
         'X-Clip-Duration': clipDuration.toFixed(3),
       },
       body: formData,
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!res.ok) {
@@ -188,6 +191,7 @@ export const exportApi = {
         'X-Job-Token': jobToken,
         Accept: 'application/json',
       },
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!res.ok) {
@@ -204,6 +208,7 @@ export const exportApi = {
     const res = await fetch(`${API_BASE}/api/export/${encodeURIComponent(jobId)}/status`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (res.status === 404) {
@@ -231,6 +236,7 @@ export const exportApi = {
           'X-Job-Token': jobToken,
           Accept: 'application/json',
         },
+        signal: AbortSignal.timeout(5_000),
       });
     } catch (err) {
       console.warn('[exportApi] Cancel request error:', err);

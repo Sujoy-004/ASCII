@@ -105,7 +105,7 @@ export function startServerExport(options: ServerExportOptions): ActiveExportCon
       if (err instanceof ServerBusyApiError) {
         throw err;
       }
-      throw new Error(`Failed to initialize server export: ${(err as Error).message}`);
+      throw new Error(`Failed to initialize server export: ${(err as Error).message}`, { cause: err });
     }
 
     activeJobId = initRes.job_id;
