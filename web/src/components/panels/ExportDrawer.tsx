@@ -4,6 +4,7 @@ import { exportRasterImage } from '../../export/imageExport';
 import { exportAsciiText } from '../../export/textExport';
 import { exportAsciiSvg } from '../../export/svgExport';
 import { recordWebmClip, recordGifClip } from '../../export/videoExport';
+import ServerExportModal from '../modals/ServerExportModal';
 
 /**
  * Tabbed Export Drawer panel (D-03, D-08, MEDIA-03).
@@ -20,6 +21,8 @@ export default function ExportDrawer() {
   const [duration, setDuration] = useState(3);
   const [busy, setBusy] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
+  const [serverModalOpen, setServerModalOpen] = useState(false);
+  const [serverFormat, setServerFormat] = useState<'mp4' | 'gif'>('mp4');
 
   const hasMedia = mediaType !== null;
 
@@ -243,7 +246,7 @@ export default function ExportDrawer() {
               onClick={() => void handleWebm()}
               className="h-6 bg-raised px-2 text-left text-control text-highlight hover:bg-active disabled:text-dim disabled:pointer-events-none"
             >
-              record WebM
+              quick WebM
             </button>
             <button
               type="button"
@@ -251,7 +254,36 @@ export default function ExportDrawer() {
               onClick={() => void handleGif()}
               className="h-6 bg-raised px-2 text-left text-control text-highlight hover:bg-active disabled:text-dim disabled:pointer-events-none"
             >
-              record GIF
+              quick GIF
+            </button>
+          </div>
+
+          {/* High-Resolution Server-Side Video & GIF Export per D-01, D-02, D-05 */}
+          <div className="flex flex-col gap-1 border-t border-border pt-2 mt-1">
+            <span className="text-dim text-[10px] uppercase tracking-wider">Studio Engine Export</span>
+            <button
+              type="button"
+              disabled={!hasMedia || busy}
+              onClick={() => {
+                setServerFormat('mp4');
+                setServerModalOpen(true);
+              }}
+              className="flex h-6 items-center justify-between bg-raised px-2 text-control text-highlight hover:bg-active disabled:text-dim disabled:pointer-events-none"
+            >
+              <span>export MP4 (H.264 HD)</span>
+              <span className="tabular-nums text-dim">1080p · Audio</span>
+            </button>
+            <button
+              type="button"
+              disabled={!hasMedia || busy}
+              onClick={() => {
+                setServerFormat('gif');
+                setServerModalOpen(true);
+              }}
+              className="flex h-6 items-center justify-between bg-raised px-2 text-control text-highlight hover:bg-active disabled:text-dim disabled:pointer-events-none"
+            >
+              <span>export High-Res GIF</span>
+              <span className="tabular-nums text-dim">720p · Two-Pass</span>
             </button>
           </div>
         </div>
@@ -263,6 +295,13 @@ export default function ExportDrawer() {
           {progressMsg}
         </div>
       )}
+
+      {/* Server Export Modal per D-01, D-02, D-03, D-04, D-05 */}
+      <ServerExportModal
+        isOpen={serverModalOpen}
+        onClose={() => setServerModalOpen(false)}
+        defaultFormat={serverFormat}
+      />
     </div>
   );
 }
