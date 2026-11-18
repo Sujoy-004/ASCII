@@ -34,27 +34,35 @@ export default function RightRail() {
   }
 
   return (
-    <aside
-      className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-hairline bg-base"
-      aria-label="Right rail"
-    >
-      <GroupHeader title="effect parameters" state={effect} />
-      <div className="px-4 pb-3">
-        <EffectInspector />
-      </div>
+    <>
+      {/* Mobile backdrop to dismiss drawer on tap */}
+      <div
+        className="fixed inset-0 z-20 bg-black/60 md:hidden"
+        onClick={toggleRightRail}
+        aria-hidden
+      />
+      <aside
+        className="fixed md:relative inset-y-6 md:inset-y-0 right-0 z-30 flex w-72 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-l border-hairline bg-base shadow-2xl md:shadow-none"
+        aria-label="Right rail"
+      >
+        <GroupHeader title="effect parameters" state={effect} />
+        <div className="px-4 pb-3">
+          <EffectInspector />
+        </div>
 
-      <GroupHeader title="pre-tone" state="rec.601" />
-      <ToneControls />
+        <GroupHeader title="pre-tone" state="rec.601" />
+        <ToneControls />
 
-      <GroupHeader title="export / dispatch" state="client" />
-      <ExportDrawer />
+        <GroupHeader title="export / dispatch" state="client" />
+        <ExportDrawer />
 
-      <div className="mt-auto flex justify-end border-t border-hairline p-2">
-        <RailButton label="collapse right rail" onClick={toggleRightRail}>
-          <span aria-hidden>◨</span>
-        </RailButton>
-      </div>
-    </aside>
+        <div className="mt-auto flex justify-end border-t border-hairline p-2">
+          <RailButton label="collapse right rail" onClick={toggleRightRail}>
+            <span aria-hidden>◨</span>
+          </RailButton>
+        </div>
+      </aside>
+    </>
   );
 }
 

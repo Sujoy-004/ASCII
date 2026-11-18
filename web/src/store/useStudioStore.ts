@@ -55,6 +55,8 @@ interface StudioState extends MediaState {
   rightCollapsed: boolean;
   toggleLeftRail: () => void;
   toggleRightRail: () => void;
+  setLeftCollapsed: (collapsed: boolean) => void;
+  setRightCollapsed: (collapsed: boolean) => void;
 
   // Media ingestion (MEDIA-01, MEDIA-02, D-04)
   loadMediaFile: (file: File, expectedType?: 'image' | 'video') => Promise<void>;
@@ -240,10 +242,12 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
   theme: 'dark',
   toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
 
-  leftCollapsed: false,
-  rightCollapsed: false,
+  leftCollapsed: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  rightCollapsed: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   toggleLeftRail: () => set((s) => ({ leftCollapsed: !s.leftCollapsed })),
   toggleRightRail: () => set((s) => ({ rightCollapsed: !s.rightCollapsed })),
+  setLeftCollapsed: (collapsed) => set({ leftCollapsed: collapsed }),
+  setRightCollapsed: (collapsed) => set({ rightCollapsed: collapsed }),
 
   // Video playback
   isPlaying: false,

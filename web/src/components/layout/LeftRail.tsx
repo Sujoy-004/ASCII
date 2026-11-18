@@ -107,10 +107,17 @@ export default function LeftRail() {
   }
 
   return (
-    <aside
-      className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-hairline bg-base"
-      aria-label="Left rail"
-    >
+    <>
+      {/* Mobile backdrop to dismiss drawer on tap */}
+      <div
+        className="fixed inset-0 z-20 bg-black/60 md:hidden"
+        onClick={toggleLeftRail}
+        aria-hidden
+      />
+      <aside
+        className="fixed md:relative inset-y-6 md:inset-y-0 left-0 z-30 flex w-60 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-r border-hairline bg-base shadow-2xl md:shadow-none"
+        aria-label="Left rail"
+      >
       <SectionHeader title="source input" state={mediaType ?? 'standby'} />
       <div className="px-4 pb-3">
         <div className="flex gap-1">
@@ -208,6 +215,7 @@ export default function LeftRail() {
         </RailButton>
       </div>
     </aside>
+    </>
   );
 }
 

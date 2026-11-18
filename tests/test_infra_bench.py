@@ -7,6 +7,7 @@ SPA _redirects rule, Neon PostgreSQL database schema blueprint, and bench_export
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from unittest.mock import MagicMock, patch
 import yaml
 
@@ -148,6 +149,7 @@ def test_benchmark_result_evaluation_and_report(capsys: pytest.CaptureFixture[st
     assert "[FAIL] CONSTRAINTS BREACHED" in captured_fail.out
 
 
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg executable not found on system PATH")
 @pytest.mark.asyncio
 async def test_run_export_benchmark_quick() -> None:
     """Run an actual quick benchmark execution (3-second synthetic clip) and verify metrics."""
