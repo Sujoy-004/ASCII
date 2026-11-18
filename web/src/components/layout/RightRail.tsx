@@ -2,10 +2,11 @@ import type { ReactNode } from 'react';
 import { useStudioStore } from '../../store/useStudioStore';
 import EffectInspector from '../panels/EffectInspector';
 import ToneControls from '../panels/ToneControls';
+import ExportDrawer from '../panels/ExportDrawer';
 
 /**
  * Right docked rail (280px) — inspector groups (D-03): dynamic EffectInspector (SHADER-02),
- * pre-tone sliders (SHADER-03), and export drawer container. Collapses to a 48px icon dock.
+ * pre-tone sliders (SHADER-03), and tabbed ExportDrawer (D-08, MEDIA-03).
  */
 export default function RightRail() {
   const rightCollapsed = useStudioStore((s) => s.rightCollapsed);
@@ -45,7 +46,7 @@ export default function RightRail() {
       <GroupHeader title="pre-tone" state="rec.601" />
       <ToneControls />
 
-      <GroupHeader title="export / dispatch" state="— " />
+      <GroupHeader title="export / dispatch" state="client" />
       <ExportDrawer />
 
       <div className="mt-auto flex justify-end border-t border-hairline p-2">
@@ -54,39 +55,6 @@ export default function RightRail() {
         </RailButton>
       </div>
     </aside>
-  );
-}
-
-/**
- * Export drawer container (D-08). Buttons render per the approved design but
- * are disabled until plan 02-05 wires the export engine — no dead handlers.
- */
-function ExportDrawer() {
-  return (
-    <div className="flex flex-col gap-1 px-4 pb-3">
-      <button
-        type="button"
-        disabled
-        className="flex h-6 items-center justify-between bg-raised px-2 text-control text-dim"
-        title="Export engine lands in plan 02-05"
-      >
-        <span>export png frame</span>
-        <span className="tabular-nums">native</span>
-      </button>
-      <div className="grid grid-cols-2 gap-1">
-        {(['jpeg', 'svg', 'txt', 'gif'] as const).map((format) => (
-          <button
-            key={format}
-            type="button"
-            disabled
-            className="h-6 bg-raised text-left px-2 text-control text-dim"
-            title="Export engine lands in plan 02-05"
-          >
-            {format}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
