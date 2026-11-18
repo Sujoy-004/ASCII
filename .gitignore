@@ -25,6 +25,7 @@ Thumbs.db
 .wrangler/
 .playwright-mcp/
 AGENTS.md
+GEMINI.md
 .env
 .claude/
 .gsd/
