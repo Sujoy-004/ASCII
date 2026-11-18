@@ -7,7 +7,7 @@ Transform the existing Python terminal video renderer into an end-to-end modern 
 ## Phases
 
 - [x] **Phase 1: Codebase Modernization & Core Engine Extraction** - Audit existing Python code, archive terminal runner, isolate core media algorithms, and ensure strict linting/typing. (completed 2026-11-17)
-- [ ] **Phase 2: Studio UI/UX Redesign & Client Shader Pipeline** - Prototype UI via Stitch MCP for explicit user approval, then build the React + WebGPU/WebGL2 interactive studio with media/webcam input and client-side exports.
+- [x] **Phase 2: Studio UI/UX Redesign & Client Shader Pipeline** - Prototype UI via Stitch MCP for explicit user approval, then build the React + WebGPU/WebGL2 interactive studio with media/webcam input and client-side exports. (completed 2026-11-18)
 - [ ] **Phase 3: Backend API, High-Res Export & Git-Driven Deployment** - FastAPI service, FFmpeg video/GIF transcoding with audio sync, Neon PostgreSQL scaffolding, and zero-cost cloud deployment via `render.yaml` and `wrangler.toml`.
 
 ## Phase Details
@@ -49,19 +49,19 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 02-01-PLAN.md — Prototype visual studio interface with Stitch MCP and secure explicit user design approval gate.
+- [x] 02-01-PLAN.md — Prototype visual studio interface with Stitch MCP and secure explicit user design approval gate.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 02-02-PLAN.md — Implement React 19 + TypeScript SPA studio shell with three-column docked layout, Viewport HUD, and blank-slate media/webcam ingestion.
+- [x] 02-02-PLAN.md — Implement React 19 + TypeScript SPA studio shell with three-column docked layout, Viewport HUD, and blank-slate media/webcam ingestion.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 02-03-PLAN.md — Build core Three.js WebGPU / TSL engine with WebGL2 fallback, dynamic monospace atlas, Rec. 601 ASCII node, and stage-gated pre-tone & CRT pipeline.
+- [x] 02-03-PLAN.md — Build core Three.js WebGPU / TSL engine with WebGL2 fallback, dynamic monospace atlas, Rec. 601 ASCII node, and stage-gated pre-tone & CRT pipeline.
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 02-04-PLAN.md — Implement full 15 Grainrad primary retro shaders in TSL/WGSL and dynamic EffectInspector parameter panel.
+- [x] 02-04-PLAN.md — Implement full 15 Grainrad primary retro shaders in TSL/WGSL and dynamic EffectInspector parameter panel.
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 02-05-PLAN.md — Implement client-side multi-format export suite (PNG, JPEG, SVG, TXT) and in-browser quick canvas recorder (WebM, animated GIF).
+- [x] 02-05-PLAN.md — Implement client-side multi-format export suite (PNG, JPEG, SVG, TXT) and in-browser quick canvas recorder (WebM, animated GIF).
 
 ---
 
@@ -92,7 +92,7 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Codebase Modernization & Core Extraction | 3/3 | Complete    | 2026-11-17 |
-| 2. Studio UI/UX Redesign & Client Shader Pipeline | 0/5 | Not started | - |
+| 2. Studio UI/UX Redesign & Client Shader Pipeline | 5/5 | Complete    | 2026-11-18 |
 | 3. Backend API, High-Res Export & Deployment | 0/2 | Not started | - |
 
 ---
