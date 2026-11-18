@@ -9,7 +9,22 @@ import { StudioRenderer } from './Renderer';
 import { TextureAtlas } from './TextureAtlas';
 import { preToneNode } from './shaders/preTone';
 import { asciiShaderNode } from './shaders/ascii';
+import { ditherShaderNode } from './shaders/dither';
+import { halftoneShaderNode } from './shaders/halftone';
+import { matrixRainShaderNode } from './shaders/matrixRain';
+import { pixelSortShaderNode } from './shaders/pixelSort';
 import { vhsShaderNode } from './shaders/vhs';
+import {
+  dotsShaderNode,
+  contourShaderNode,
+  blockifyShaderNode,
+  thresholdShaderNode,
+  edgeDetectShaderNode,
+  crosshatchShaderNode,
+  waveLinesShaderNode,
+  noiseFieldShaderNode,
+  voronoiShaderNode,
+} from './shaders/effects';
 import type { ToneSettings, AsciiSettings, EffectMode } from '../types/studio';
 
 export interface PipelineOptions {
@@ -19,11 +34,7 @@ export interface PipelineOptions {
 export type ColorGradingPreset = 'original' | 'green' | 'amber' | 'cyan';
 
 /**
- * 4-Stage Stage-Gated Shader Pipeline (D-06, SHADER-01, SHADER-02, SHADER-03, SHADER-04).
- * Stage 1: Pre-Tone Adjustments (Brightness, Contrast, Saturation, Hue Rotation, Gamma, Invert)
- * Stage 2: Primary Effect (ASCII, and extensible to other Grainrad modes in 02-04)
- * Stage 3: Color Grading (Original TrueColor, Phosphor Green, Amber CRT, Cyan Terminal)
- * Stage 4: Post-FX Overlay (CRT/VHS scanlines, tape glitch, chromatic aberration, curvature)
+ * 4-Stage Stage-Gated Shader Pipeline supporting all 16 Grainrad Modes (D-02, D-06, SHADER-01, SHADER-02, SHADER-03, SHADER-04).
  */
 export class StudioPipeline {
   private studioRenderer: StudioRenderer;
@@ -40,7 +51,7 @@ export class StudioPipeline {
   private sourceTexture: THREE.Texture | null = null;
   private sourceTextureNode: any = null;
 
-  // Uniforms
+  // Shared Uniforms
   private resolutionUniform: any;
   private timeUniform: any;
 
@@ -58,6 +69,30 @@ export class StudioPipeline {
   private charAspectUniform: any;
   private rampLengthUniform: any;
 
+  // Dither Uniforms
+  private ditherMatrixType: any;
+  private ditherColorSteps: any;
+  private ditherSpread: any;
+
+  // Halftone Uniforms
+  private halftoneFrequency: any;
+  private halftoneAngle: any;
+  private halftoneDotRadius: any;
+
+  // Matrix Rain Uniforms
+  private matrixSpeed: any;
+  private matrixDropLength: any;
+  private matrixDensity: any;
+
+  // Pixel Sort Uniforms
+  private sortThreshold: any;
+  private sortSpan: any;
+  private sortDirection: any;
+
+  // Generic Effect Uniforms
+  private genericParamA: any;
+  private genericParamB: any;
+
   // VHS/CRT Uniforms (Stage 4)
   private vhsScanlineIntensity: any;
   private vhsScanlineFrequency: any;
@@ -73,7 +108,6 @@ export class StudioPipeline {
     this.studioRenderer = new StudioRenderer({ canvas: options.canvas });
     this.textureAtlas = new TextureAtlas();
 
-    // Scene & Orthographic camera for full-screen quad display
     this.scene = new THREE.Scene();
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
@@ -92,6 +126,25 @@ export class StudioPipeline {
     this.charSpacingUniform = uniform(0.0);
     this.charAspectUniform = uniform(0.5);
     this.rampLengthUniform = uniform(10.0);
+
+    this.ditherMatrixType = uniform(1.0);
+    this.ditherColorSteps = uniform(4.0);
+    this.ditherSpread = uniform(0.5);
+
+    this.halftoneFrequency = uniform(50.0);
+    this.halftoneAngle = uniform(45.0);
+    this.halftoneDotRadius = uniform(1.0);
+
+    this.matrixSpeed = uniform(1.0);
+    this.matrixDropLength = uniform(15.0);
+    this.matrixDensity = uniform(40.0);
+
+    this.sortThreshold = uniform(0.5);
+    this.sortSpan = uniform(20.0);
+    this.sortDirection = uniform(0.0);
+
+    this.genericParamA = uniform(8.0);
+    this.genericParamB = uniform(1.0);
 
     this.vhsScanlineIntensity = uniform(0.0);
     this.vhsScanlineFrequency = uniform(800.0);
@@ -112,9 +165,6 @@ export class StudioPipeline {
     this.rebuildPipeline();
   }
 
-  /**
-   * Sets or replaces the source media texture (image, video, or webcam).
-   */
   setSourceTexture(tex: THREE.Texture): void {
     this.sourceTexture = tex;
     tex.minFilter = THREE.LinearFilter;
@@ -124,9 +174,6 @@ export class StudioPipeline {
     this.rebuildPipeline();
   }
 
-  /**
-   * Syncs ToneSettings from Zustand store to uniforms.
-   */
   updateTone(settings: ToneSettings): void {
     this.brightnessUniform.value = settings.brightness;
     this.contrastUniform.value = settings.contrast;
@@ -136,9 +183,6 @@ export class StudioPipeline {
     this.invertUniform.value = settings.invert ? 1.0 : 0.0;
   }
 
-  /**
-   * Syncs AsciiSettings from Zustand store to uniforms and updates texture atlas.
-   */
   updateAscii(settings: AsciiSettings): void {
     this.cellScaleUniform.value = settings.cellScale;
     this.charSpacingUniform.value = settings.charSpacing;
@@ -148,21 +192,20 @@ export class StudioPipeline {
     this.rampLengthUniform.value = this.textureAtlas.getCharCount();
   }
 
-  /**
-   * Updates VHS overlay parameters.
-   */
-  updateVhs(options: {
-    scanlineIntensity?: number;
-    scanlineFrequency?: number;
-    aberration?: number;
-    noiseIntensity?: number;
-    curvature?: number;
-  }): void {
-    if (options.scanlineIntensity !== undefined) this.vhsScanlineIntensity.value = options.scanlineIntensity;
-    if (options.scanlineFrequency !== undefined) this.vhsScanlineFrequency.value = options.scanlineFrequency;
-    if (options.aberration !== undefined) this.vhsAberration.value = options.aberration;
-    if (options.noiseIntensity !== undefined) this.vhsNoiseIntensity.value = options.noiseIntensity;
-    if (options.curvature !== undefined) this.vhsCurvature.value = options.curvature;
+  updateEffectParam(key: string, value: number): void {
+    switch (key) {
+      case 'ditherSteps': this.ditherColorSteps.value = value; break;
+      case 'ditherSpread': this.ditherSpread.value = value; break;
+      case 'halftoneFreq': this.halftoneFrequency.value = value; break;
+      case 'halftoneAngle': this.halftoneAngle.value = value; break;
+      case 'halftoneRadius': this.halftoneDotRadius.value = value; break;
+      case 'matrixSpeed': this.matrixSpeed.value = value; break;
+      case 'matrixDensity': this.matrixDensity.value = value; break;
+      case 'sortThreshold': this.sortThreshold.value = value; break;
+      case 'sortSpan': this.sortSpan.value = value; break;
+      case 'genericA': this.genericParamA.value = value; break;
+      case 'genericB': this.genericParamB.value = value; break;
+    }
   }
 
   setEffect(effect: EffectMode): void {
@@ -179,19 +222,14 @@ export class StudioPipeline {
     }
   }
 
-  /**
-   * Assembles the 4-stage pipeline graph:
-   * Source -> Stage 1 (PreTone) -> Stage 2 (Primary Effect) -> Stage 3 (Color Grading) -> Stage 4 (Post-FX)
-   */
   private rebuildPipeline(): void {
     if (!this.sourceTextureNode) {
-      // Standby color when no media is loaded
       this.displayMaterial.colorNode = vec4(0.06, 0.06, 0.06, 1.0);
       this.displayMaterial.needsUpdate = true;
       return;
     }
 
-    // Stage 1: Pre-Tone Node
+    // Stage 1: Pre-Tone
     const preToneOut = preToneNode({
       colorNode: this.sourceTextureNode,
       brightness: this.brightnessUniform,
@@ -202,39 +240,145 @@ export class StudioPipeline {
       invert: this.invertUniform,
     });
 
-    // Stage 2: Primary Effect
+    // Stage 2: 16 Grainrad Primary Effect Switching (D-02)
     let effectOut: any = preToneOut;
 
-    if (this.activeEffect === 'ascii') {
-      const atlasTexNode = texture(this.textureAtlas.getTexture());
-      effectOut = asciiShaderNode({
-        sourceNode: preToneOut,
-        atlasTexture: atlasTexNode,
-        cellScale: this.cellScaleUniform,
-        charSpacing: this.charSpacingUniform,
-        charAspect: this.charAspectUniform,
-        rampLength: this.rampLengthUniform,
-        resolution: this.resolutionUniform,
-      });
+    switch (this.activeEffect) {
+      case 'ascii': {
+        const atlasTexNode = texture(this.textureAtlas.getTexture());
+        effectOut = asciiShaderNode({
+          sourceNode: preToneOut,
+          atlasTexture: atlasTexNode,
+          cellScale: this.cellScaleUniform,
+          charSpacing: this.charSpacingUniform,
+          charAspect: this.charAspectUniform,
+          rampLength: this.rampLengthUniform,
+          resolution: this.resolutionUniform,
+        });
+        break;
+      }
+      case 'dither':
+        effectOut = ditherShaderNode({
+          colorNode: preToneOut,
+          matrixType: this.ditherMatrixType,
+          colorSteps: this.ditherColorSteps,
+          resolution: this.resolutionUniform,
+          spread: this.ditherSpread,
+        });
+        break;
+      case 'halftone':
+        effectOut = halftoneShaderNode({
+          colorNode: preToneOut,
+          frequency: this.halftoneFrequency,
+          angle: this.halftoneAngle,
+          dotRadius: this.halftoneDotRadius,
+          resolution: this.resolutionUniform,
+        });
+        break;
+      case 'matrix':
+        effectOut = matrixRainShaderNode({
+          colorNode: preToneOut,
+          speed: this.matrixSpeed,
+          dropLength: this.matrixDropLength,
+          density: this.matrixDensity,
+          time: this.timeUniform,
+          resolution: this.resolutionUniform,
+        });
+        break;
+      case 'pixelSort':
+        effectOut = pixelSortShaderNode({
+          colorNode: preToneOut,
+          threshold: this.sortThreshold,
+          sortSpan: this.sortSpan,
+          direction: this.sortDirection,
+          resolution: this.resolutionUniform,
+          time: this.timeUniform,
+        });
+        break;
+      case 'dots':
+        effectOut = dotsShaderNode({
+          colorNode: preToneOut,
+          spacing: this.genericParamA,
+          radius: this.genericParamB,
+          resolution: this.resolutionUniform,
+        });
+        break;
+      case 'contour':
+        effectOut = contourShaderNode({
+          colorNode: preToneOut,
+          steps: this.genericParamA,
+          lineWidth: this.genericParamB.mul(0.1),
+        });
+        break;
+      case 'blockify':
+        effectOut = blockifyShaderNode({
+          colorNode: preToneOut,
+          blockSize: this.genericParamA,
+          resolution: this.resolutionUniform,
+        });
+        break;
+      case 'threshold':
+        effectOut = thresholdShaderNode({
+          colorNode: preToneOut,
+          threshold: this.genericParamB.mul(0.5),
+        });
+        break;
+      case 'edgeDetect':
+        effectOut = edgeDetectShaderNode({
+          colorNode: preToneOut,
+          sensitivity: this.genericParamA,
+        });
+        break;
+      case 'crosshatch':
+        effectOut = crosshatchShaderNode({
+          colorNode: preToneOut,
+          spacing: this.genericParamA,
+          resolution: this.resolutionUniform,
+        });
+        break;
+      case 'waveLines':
+        effectOut = waveLinesShaderNode({
+          colorNode: preToneOut,
+          frequency: this.genericParamA,
+          amplitude: this.genericParamB,
+          time: this.timeUniform,
+        });
+        break;
+      case 'noise':
+        effectOut = noiseFieldShaderNode({
+          colorNode: preToneOut,
+          intensity: this.genericParamB,
+          time: this.timeUniform,
+        });
+        break;
+      case 'voronoi':
+        effectOut = voronoiShaderNode({
+          colorNode: preToneOut,
+          scale: this.genericParamA,
+          resolution: this.resolutionUniform,
+        });
+        break;
+      case 'vhs':
+      case 'tone':
+      default:
+        effectOut = preToneOut;
+        break;
     }
 
-    // Stage 3: Color Grading (Phosphor Green, Amber CRT, Cyan Terminal, Original)
+    // Stage 3: Color Grading
     let gradedOut: any = effectOut;
     if (this.colorGrading === 'green') {
-      // Rec. 601 lum tinted with Phosphor Green #33ff33
       const lum = effectOut.r.mul(0.299).add(effectOut.g.mul(0.587)).add(effectOut.b.mul(0.114));
       gradedOut = vec4(lum.mul(0.2), lum.mul(1.0), lum.mul(0.2), effectOut.a);
     } else if (this.colorGrading === 'amber') {
-      // Amber CRT #ffb000
       const lum = effectOut.r.mul(0.299).add(effectOut.g.mul(0.587)).add(effectOut.b.mul(0.114));
       gradedOut = vec4(lum.mul(1.0), lum.mul(0.69), lum.mul(0.0), effectOut.a);
     } else if (this.colorGrading === 'cyan') {
-      // Cyan Terminal #00f0ff
       const lum = effectOut.r.mul(0.299).add(effectOut.g.mul(0.587)).add(effectOut.b.mul(0.114));
       gradedOut = vec4(lum.mul(0.0), lum.mul(0.94), lum.mul(1.0), effectOut.a);
     }
 
-    // Stage 4: Post-FX Overlay (CRT/VHS)
+    // Stage 4: Post-FX Overlay
     const finalOut = vhsShaderNode({
       colorNode: gradedOut,
       scanlineIntensity: this.vhsScanlineIntensity,
