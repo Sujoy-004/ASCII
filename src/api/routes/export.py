@@ -285,7 +285,7 @@ async def finalize_export(
     }
 
 
-@router.get("/{job_id}/status")
+@router.get("/{job_id}/status", response_model=None)
 @limiter.limit("60/minute")
 async def get_export_status(
     request: Request,
