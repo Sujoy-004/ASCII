@@ -34,17 +34,17 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Backend Media Transcoding Service
 
-- [ ] **EXPORT-01**: FastAPI backend exposes `/api/export/video` accepting media uploads and serialized shader parameter configurations.
-- [ ] **EXPORT-02**: Backend decodes video, applies retro transformations via modernized core algorithms, and outputs rendered MP4 video and animated GIF with audio sync via FFmpeg.
-- [ ] **EXPORT-03**: Backend processes media in bounded streaming chunks using temporary files, staying strictly within Render's 512MB RAM ceiling.
-- [ ] **EXPORT-04**: Backend exposes `/api/health` allowing client-side background pre-warming to mitigate free-tier container cold starts.
+- [x] **EXPORT-01**: FastAPI backend exposes `/api/export/video` accepting media uploads and serialized shader parameter configurations.
+- [x] **EXPORT-02**: Backend decodes video, applies retro transformations via modernized core algorithms, and outputs rendered MP4 video and animated GIF with audio sync via FFmpeg.
+- [x] **EXPORT-03**: Backend processes media in bounded streaming chunks using temporary files, staying strictly within Render's 512MB RAM ceiling.
+- [x] **EXPORT-04**: Backend exposes `/api/health` allowing client-side background pre-warming to mitigate free-tier container cold starts.
 
 ### Git-Driven Deployment & Zero-Cost Infrastructure
 
-- [ ] **INFRA-01**: Cloudflare Pages configuration (`wrangler.toml`) defines static build commands, edge routing, and SPA fallback.
-- [ ] **INFRA-02**: Render Blueprint (`render.yaml`) defines Git-driven deployment for the FastAPI service with FFmpeg on the free tier.
-- [ ] **INFRA-03**: Neon Serverless PostgreSQL schema and connection scaffolding is documented and ready for future persistence without requiring active instances in v1.
-- [ ] **INFRA-04**: Production deployment verified to run completely within free-tier limits at $0/month with zero ongoing maintenance costs.
+- [x] **INFRA-01**: Cloudflare Pages configuration (`wrangler.toml`) defines static build commands, edge routing, and SPA fallback.
+- [x] **INFRA-02**: Render Blueprint (`render.yaml`) defines Git-driven deployment for the FastAPI service with FFmpeg on the free tier.
+- [x] **INFRA-03**: Neon Serverless PostgreSQL schema and connection scaffolding is documented and ready for future persistence without requiring active instances in v1.
+- [x] **INFRA-04**: Production deployment verified to run completely within free-tier limits at $0/month with zero ongoing maintenance costs.
 
 ## v2 Requirements
 
