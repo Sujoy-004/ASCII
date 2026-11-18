@@ -70,6 +70,10 @@
   --default-font-family: var(--font-mono);
   --default-transition-duration: var(--dur-fast);
   --default-transition-timing-function: var(--ease);
+  --text-control: 12px;
+  --text-value: 12px;
+  --duration-fast: var(--dur-fast);
+  --duration-med: var(--dur-med);
 }
 
 html,
@@ -94,4 +98,34 @@ body {
 /* Square corners everywhere; keep Tailwind radius utilities inert. */
 * {
   border-radius: 0;
+}
+
+/* Slider rows: 1px hairline track, 8px square thumb, no color fill (DESIGN.md §3). */
+input[type='range'][data-slider] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(var(--border-hairline), var(--border-hairline)) center / 100% 1px no-repeat;
+}
+input[type='range'][data-slider]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--text-highlight);
+  border: none;
+  border-radius: 0;
+  cursor: ew-resize;
+}
+input[type='range'][data-slider]::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  background: var(--text-highlight);
+  border: none;
+  border-radius: 0;
+  cursor: ew-resize;
+}
+input[type='range'][data-slider]::-moz-range-track {
+  height: 1px;
+  background: var(--border-hairline);
 }
