@@ -1,6 +1,8 @@
 {
   "source": "stitch-mcp",
-  "generatedAt": "2026-11-18T03:27:47Z",
+  "generatedAt": "2026-11-18T04:35:32Z",
+  "round": "r2",
+  "roundNotes": "Monochrome Grainrad redesign. Round 1 phosphor design system assets/df6f50a9fc4440308f061263195e879a retired (left untouched server-side); replaced by Grainrad Mono Studio.",
   "project": {
     "id": "13429898272245688948",
     "title": "RGB ASCII & Retro FX Studio",
@@ -8,34 +10,43 @@
     "url": "https://stitch.withgoogle.com/projects/13429898272245688948"
   },
   "designSystem": {
-    "id": "assets/df6f50a9fc4440308f061263195e879a",
-    "name": "Cathode Retro FX Studio",
+    "id": "assets/15749583180289410834",
+    "name": "Grainrad Mono Studio",
     "tokens": {
-      "background": "#0d0f12",
-      "border": "#26292e",
-      "accentPhosphor": "#33ff66",
-      "accentAmber": "#ffb000",
-      "accentCyan": "#4dd0e1",
-      "fontMono": "JetBrains Mono"
+      "bgBase": "#0a0a0a",
+      "bgActive": "#0f0f0f",
+      "bgRaised": "#151515",
+      "hairline": "#222222",
+      "textDim": "#555555",
+      "textDefault": "#888888",
+      "textHighlight": "#cccccc",
+      "textMax": "#ffffff",
+      "fontMono": "IBM Plex Mono",
+      "controlHeight": "24px",
+      "controlPadding": "6px 8px",
+      "radius": "0",
+      "grid": "4px",
+      "glyphStates": ["-", "●", "○"]
     }
   },
   "screens": [
     {
-      "id": "bd8d6a99afa84db6a886f4582c52053b",
-      "title": "RGB ASCII & Retro FX Studio",
+      "id": "1413dc7c5bce4a51b610710f5b31ee09",
+      "title": "RGB ASCII & Retro FX Studio - Grainrad Mono",
       "state": "standby-blank-slate",
-      "screenshotFile": "files/f0408b9dfadb4cc790fdc16302a383c0",
-      "htmlFile": "files/d119550c5eff46ae9f69141ad1c45935",
+      "size": "2560x2048",
+      "screenshotFile": "files/216d635b77764c2f80db5533f4569206",
+      "htmlFile": "files/ffc9a992f87b450faa163f8748623138",
       "localScreenshot": "prototypes/02-01-studio-standby.png"
     },
     {
-      "id": "1ecf3101e2a940a19f3a1cd0a30a2d18",
-      "title": "RGB ASCII Studio - Active Media (Sunset.png)",
+      "id": "3a0e2c0aff1b44fcacb6e4d44c925c26",
+      "title": "RGB ASCII Studio - Active Media (Grainrad Mono)",
       "state": "active-media",
-      "screenshotFile": "files/4c4e4a0a2e2a4d088eff363da3b463ce",
-      "htmlFile": "files/289b1f47dcac4904b62f6658d36999b6",
+      "screenshotFile": "files/7902d1ad429542e4a99c3138d1674eb1",
+      "htmlFile": "files/473bee3bcebe44bd8e7f8319872fb622",
       "localScreenshot": "prototypes/02-01-studio-active-media.png"
     }
   ],
-  "notes": "Standby screen shows three-column layout with dropzone (D-03/D-04). Active screen shows canvas render with populated inspector and library. Source image for active state generated separately (screen 4a5fe7fdf8314cbea6f36a86a2b99d5c)."
+  "notes": "Standby screen shows three-column layout with dropzone (D-03/D-04), 16 pipeline mode tiles, macro presets; CRT scanlines present in the empty standby stage ONLY. Active screen shows canvas render with populated inspector and library; color appears ONLY in the canvas artwork (RGB ASCII output) — UI chrome is pure greyscale. DESIGN.md in this directory is the authoritative token contract."
 }
