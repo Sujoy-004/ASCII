@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useStudioStore } from '../../store/useStudioStore';
 import type { RampPreset } from '../../types/studio';
 
@@ -14,25 +13,11 @@ export default function EffectInspector({ onParamChange }: EffectInspectorProps)
   const effect = useStudioStore((s) => s.effect);
   const ascii = useStudioStore((s) => s.ascii);
   const updateAscii = useStudioStore((s) => s.updateAscii);
+  const effectParams = useStudioStore((s) => s.effectParams);
+  const updateEffectParam = useStudioStore((s) => s.updateEffectParam);
 
-  // Local state for interactive effect sliders
-  const [ditherSteps, setDitherSteps] = useState(4);
-  const [ditherSpread, setDitherSpread] = useState(0.5);
-
-  const [halftoneFreq, setHalftoneFreq] = useState(50);
-  const [halftoneAngle, setHalftoneAngle] = useState(45);
-  const [halftoneRadius, setHalftoneRadius] = useState(1.0);
-
-  const [matrixSpeed, setMatrixSpeed] = useState(1.0);
-  const [matrixDensity, setMatrixDensity] = useState(40);
-
-  const [sortThreshold, setSortThreshold] = useState(0.5);
-  const [sortSpan, setSortSpan] = useState(20);
-
-  const [paramA, setParamA] = useState(8);
-  const [paramB, setParamB] = useState(1);
-
-  const handleParam = (key: string, val: number) => {
+  const handleParam = (key: any, val: number) => {
+    updateEffectParam(key, val);
     if (onParamChange) onParamChange(key, val);
   };
 
@@ -98,21 +83,21 @@ export default function EffectInspector({ onParamChange }: EffectInspectorProps)
         <div className="flex flex-col gap-2">
           <SliderRow
             label="color levels"
-            value={ditherSteps}
+            value={effectParams.ditherSteps}
             min={2}
             max={16}
             step={1}
             format={(v) => `${v}`}
-            onChange={(v) => { setDitherSteps(v); handleParam('ditherSteps', v); }}
+            onChange={(v) => handleParam('ditherSteps', v)}
           />
           <SliderRow
             label="dither spread"
-            value={ditherSpread}
+            value={effectParams.ditherSpread}
             min={0.1}
             max={2.0}
             step={0.05}
             format={(v) => v.toFixed(2)}
-            onChange={(v) => { setDitherSpread(v); handleParam('ditherSpread', v); }}
+            onChange={(v) => handleParam('ditherSpread', v)}
           />
         </div>
       );
@@ -122,30 +107,30 @@ export default function EffectInspector({ onParamChange }: EffectInspectorProps)
         <div className="flex flex-col gap-2">
           <SliderRow
             label="screen frequency"
-            value={halftoneFreq}
+            value={effectParams.halftoneFreq}
             min={10}
             max={150}
             step={1}
             format={(v) => `${v} lpi`}
-            onChange={(v) => { setHalftoneFreq(v); handleParam('halftoneFreq', v); }}
+            onChange={(v) => handleParam('halftoneFreq', v)}
           />
           <SliderRow
             label="screen angle"
-            value={halftoneAngle}
+            value={effectParams.halftoneAngle}
             min={-90}
             max={90}
             step={1}
             format={(v) => `${v}°`}
-            onChange={(v) => { setHalftoneAngle(v); handleParam('halftoneAngle', v); }}
+            onChange={(v) => handleParam('halftoneAngle', v)}
           />
           <SliderRow
             label="dot radius"
-            value={halftoneRadius}
+            value={effectParams.halftoneRadius}
             min={0.2}
             max={2.0}
             step={0.05}
             format={(v) => v.toFixed(2)}
-            onChange={(v) => { setHalftoneRadius(v); handleParam('halftoneRadius', v); }}
+            onChange={(v) => handleParam('halftoneRadius', v)}
           />
         </div>
       );
@@ -155,21 +140,21 @@ export default function EffectInspector({ onParamChange }: EffectInspectorProps)
         <div className="flex flex-col gap-2">
           <SliderRow
             label="fall speed"
-            value={matrixSpeed}
+            value={effectParams.matrixSpeed}
             min={0.2}
             max={4.0}
             step={0.1}
             format={(v) => `${v.toFixed(1)}x`}
-            onChange={(v) => { setMatrixSpeed(v); handleParam('matrixSpeed', v); }}
+            onChange={(v) => handleParam('matrixSpeed', v)}
           />
           <SliderRow
             label="stream density"
-            value={matrixDensity}
+            value={effectParams.matrixDensity}
             min={10}
             max={100}
             step={2}
             format={(v) => `${v}`}
-            onChange={(v) => { setMatrixDensity(v); handleParam('matrixDensity', v); }}
+            onChange={(v) => handleParam('matrixDensity', v)}
           />
         </div>
       );
@@ -179,28 +164,66 @@ export default function EffectInspector({ onParamChange }: EffectInspectorProps)
         <div className="flex flex-col gap-2">
           <SliderRow
             label="sort threshold"
-            value={sortThreshold}
-            min={0.1}
-            max={0.9}
+            value={effectParams.sortThreshold}
+            min={0.05}
+            max={0.95}
             step={0.05}
             format={(v) => v.toFixed(2)}
-            onChange={(v) => { setSortThreshold(v); handleParam('sortThreshold', v); }}
+            onChange={(v) => handleParam('sortThreshold', v)}
           />
           <SliderRow
             label="streak span"
-            value={sortSpan}
+            value={effectParams.sortSpan}
             min={5}
-            max={60}
+            max={100}
             step={1}
             format={(v) => `${v} px`}
-            onChange={(v) => { setSortSpan(v); handleParam('sortSpan', v); }}
+            onChange={(v) => handleParam('sortSpan', v)}
+          />
+          <button
+            type="button"
+            onClick={() =>
+              handleParam(
+                'sortDirection',
+                effectParams.sortDirection === 0 ? 1 : 0
+              )
+            }
+            className="flex h-6 items-center justify-between bg-raised px-2 text-control hover:bg-active"
+          >
+            <span>direction</span>
+            <span className="tabular-nums text-highlight">
+              {effectParams.sortDirection === 0 ? '→ horizontal' : '↓ vertical'}
+            </span>
+          </button>
+        </div>
+      );
+
+    case 'blockify':
+      return (
+        <div className="flex flex-col gap-2">
+          <SliderRow
+            label="block size"
+            value={effectParams.genericA}
+            min={2}
+            max={64}
+            step={1}
+            format={(v) => `${v} px`}
+            onChange={(v) => handleParam('genericA', v)}
+          />
+          <SliderRow
+            label="grid line"
+            value={effectParams.genericB}
+            min={0}
+            max={1}
+            step={0.05}
+            format={(v) => (v === 0 ? 'off' : v.toFixed(2))}
+            onChange={(v) => handleParam('genericB', v)}
           />
         </div>
       );
 
     case 'dots':
     case 'contour':
-    case 'blockify':
     case 'threshold':
     case 'edgeDetect':
     case 'crosshatch':
@@ -211,21 +234,21 @@ export default function EffectInspector({ onParamChange }: EffectInspectorProps)
         <div className="flex flex-col gap-2">
           <SliderRow
             label="scale / frequency"
-            value={paramA}
+            value={effectParams.genericA}
             min={2}
             max={32}
             step={1}
             format={(v) => `${v}`}
-            onChange={(v) => { setParamA(v); handleParam('genericA', v); }}
+            onChange={(v) => handleParam('genericA', v)}
           />
           <SliderRow
             label="intensity / radius"
-            value={paramB}
+            value={effectParams.genericB}
             min={0.1}
             max={3.0}
             step={0.1}
             format={(v) => v.toFixed(1)}
-            onChange={(v) => { setParamB(v); handleParam('genericB', v); }}
+            onChange={(v) => handleParam('genericB', v)}
           />
         </div>
       );
