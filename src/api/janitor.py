@@ -75,23 +75,23 @@ class ExportJanitor:
         urgent_purge = total_disk_usage > 400 * 1024 * 1024
 
         # Inactivity timeout check for active upload jobs (60s without chunks) per D-08
-        for job in list(manager._jobs.values()):
-            if job.state in {"capturing", "uploading"}:
-                if now - job.updated_at > config.inactivity_timeout_seconds:
-                    logger.warning("Job %s timed out due to upload inactivity (60s)", job.id)
-                    manager.fail_job(job.id, "Upload inactivity timeout exceeded (60s)")
+        for active_job in list(manager._jobs.values()):
+            if active_job.state in {"capturing", "uploading"}:
+                if now - active_job.updated_at > config.inactivity_timeout_seconds:
+                    logger.warning("Job %s timed out due to upload inactivity (60s)", active_job.id)
+                    manager.fail_job(active_job.id, "Upload inactivity timeout exceeded (60s)")
 
         for child in self._storage_dir.iterdir():
             if not child.is_dir():
                 continue
 
             job_id = child.name
-            job = manager.get_job(job_id)
+            target_job = manager.get_job(job_id)
 
             # Active Process Protection: strictly NEVER purge active jobs or living PIDs per D-08
-            if job and job.is_active():
+            if target_job and target_job.is_active():
                 continue
-            if job and self.is_pid_active(job.pid):
+            if target_job and self.is_pid_active(target_job.pid):
                 continue
 
             # Check age of directory on disk
@@ -103,15 +103,15 @@ class ExportJanitor:
 
             should_purge = False
 
-            if job:
-                if job.state == "completed":
+            if target_job:
+                if target_job.state == "completed":
                     # Urgent purge: completed jobs older than 2 min when disk usage > 400 MB per D-08
                     if urgent_purge and age_seconds > 120:
                         should_purge = True
                     # Normal retention: 10 minutes post-completion per D-08
                     elif age_seconds > config.max_job_lifetime_seconds:
                         should_purge = True
-                elif job.is_terminal() and age_seconds > config.max_job_lifetime_seconds:
+                elif target_job.is_terminal() and age_seconds > config.max_job_lifetime_seconds:
                     should_purge = True
             else:
                 # Orphan directory from previous server instance/crash
@@ -129,7 +129,7 @@ class ExportJanitor:
                 shutil.rmtree(child, ignore_errors=True)
                 purged_count += 1
                 freed_bytes += dir_size
-                if job and job.state != "expired":
+                if target_job and target_job.state != "expired":
                     try:
                         manager.transition_job(job_id, "expired")
                     except Exception:

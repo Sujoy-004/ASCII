@@ -290,7 +290,7 @@ async def finalize_export(
 async def get_export_status(
     request: Request,
     job_id: str,
-) -> dict[str, object]:
+) -> JSONResponse | dict[str, object]:
     """Return current job state and progress with container restart resilience per D-02."""
     manager = ExportJobManager.get_instance()
     job = manager.get_job(job_id)
