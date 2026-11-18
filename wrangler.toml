@@ -1,0 +1,4 @@
+# Cloudflare Pages configuration for RGB ASCII & Retro FX Studio
+name = "rgb-ascii"
+compatibility_date = "2026-11-18"
+pages_build_output_dir = "./web/dist"

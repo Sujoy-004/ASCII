@@ -1,0 +1,34 @@
+# Render Blueprint Specification for RGB ASCII & Retro FX Studio
+# Free-tier single-worker deployment with system FFmpeg on Debian Bookworm
+services:
+  - type: web
+    name: rgb-ascii-api
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    numInstances: 1
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: https://rgb-ascii.pages.dev,http://localhost:5173,http://127.0.0.1:5173
+      - key: MAX_CHUNK_BYTES
+        value: "5242880"
+      - key: MAX_TOTAL_VIDEO_BYTES
+        value: "36700160"
+      - key: MAX_TOTAL_GIF_BYTES
+        value: "20971520"
+      - key: MAX_VIDEO_DURATION
+        value: "60.0"
+      - key: MAX_GIF_DURATION
+        value: "15.0"
+      - key: TURNSTILE_DISABLED
+        value: "false"
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: TURNSTILE_SITE_KEY
+        sync: false
