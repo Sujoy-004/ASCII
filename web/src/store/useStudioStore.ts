@@ -137,9 +137,15 @@ let registeredVideo: HTMLVideoElement | null = null;
 /** CenterStage registers its persistent <video> element for stream feeds. */
 export function registerVideoElement(el: HTMLVideoElement | null): void {
   registeredVideo = el;
-  if (activeStream && el) {
-    el.srcObject = activeStream;
-    el.play().catch(() => undefined);
+  if (el) {
+    if (activeStream) {
+      el.srcObject = activeStream;
+      el.muted = true;
+      el.play().catch(() => undefined);
+    } else if (activeObjectUrl) {
+      el.src = activeObjectUrl;
+      el.play().catch(() => undefined);
+    }
   }
 }
 
@@ -158,13 +164,18 @@ function stopStream(): void {
   if (!activeStream) return;
   for (const track of activeStream.getTracks()) track.stop(); // camera indicator off (T-02-04)
   activeStream = null;
-  if (registeredVideo) registeredVideo.srcObject = null;
+  if (registeredVideo) {
+    registeredVideo.srcObject = null;
+  }
 }
 
 function revokeUrl(): void {
   if (activeObjectUrl) {
     URL.revokeObjectURL(activeObjectUrl); // unbounded memory guard (T-02-03)
     activeObjectUrl = null;
+  }
+  if (registeredVideo) {
+    registeredVideo.removeAttribute('src');
   }
 }
 
@@ -180,19 +191,6 @@ function readImageDimensions(url: string): Promise<Dimensions> {
       resolve({ width: img.naturalWidth, height: img.naturalHeight }); // native, uncapped (D-04)
     img.onerror = () => reject(new Error('image decode failed'));
     img.src = url;
-  });
-}
-
-function readVideoDimensions(url: string): Promise<Dimensions> {
-  return new Promise((resolve, reject) => {
-    const probe = document.createElement('video');
-    probe.preload = 'metadata';
-    probe.onloadedmetadata = () => {
-      resolve({ width: probe.videoWidth, height: probe.videoHeight });
-      probe.removeAttribute('src');
-    };
-    probe.onerror = () => reject(new Error('video decode failed'));
-    probe.src = url;
   });
 }
 
@@ -237,7 +235,10 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
   duration: 0,
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setIsMuted: (muted) => {
-    if (registeredVideo) registeredVideo.muted = muted;
+    if (registeredVideo) {
+      registeredVideo.muted = muted;
+      registeredVideo.volume = muted ? 0 : 1.0;
+    }
     set({ isMuted: muted });
   },
   setPlaybackTime: (time) => set({ playbackTime: time }),
@@ -245,6 +246,8 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
   togglePlay: () => {
     if (!registeredVideo) return;
     if (registeredVideo.paused) {
+      registeredVideo.muted = get().isMuted;
+      if (!get().isMuted) registeredVideo.volume = 1.0;
       registeredVideo.play().then(() => set({ isPlaying: true })).catch(() => undefined);
     } else {
       registeredVideo.pause();
@@ -259,8 +262,12 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
   },
   toggleMute: () => {
     if (!registeredVideo) return;
-    const nextMuted = !registeredVideo.muted;
+    const nextMuted = !get().isMuted;
     registeredVideo.muted = nextMuted;
+    registeredVideo.volume = nextMuted ? 0 : 1.0;
+    if (!nextMuted && registeredVideo.paused) {
+      registeredVideo.play().catch(() => undefined);
+    }
     set({ isMuted: nextMuted });
   },
 
@@ -290,54 +297,119 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
 
     const url = URL.createObjectURL(file);
     activeObjectUrl = url;
-    try {
-      const dimensions = isImage
-        ? await readImageDimensions(url)
-        : await readVideoDimensions(url);
+
+    if (isImage) {
+      try {
+        const dimensions = await readImageDimensions(url);
+        set({
+          mediaType: 'image',
+          mediaUrl: url,
+          mediaName: file.name,
+          dimensions,
+          isPlaying: false,
+          playbackTime: 0,
+          duration: 0,
+        });
+        get().resetHUD(); // viewport fit: 100% zoom, centered
+      } catch (err) {
+        revokeUrl();
+        console.warn('Image load failed:', err);
+      }
+    } else {
+      // Direct video configuration with registered persistent element
+      const el = registeredVideo;
+      if (el) {
+        el.pause();
+        el.srcObject = null;
+        el.src = url;
+        el.loop = true;
+        el.currentTime = 0;
+        el.volume = 1.0;
+        el.muted = false; // default unmuted so video audio is hearable
+        el.load();
+
+        el.play()
+          .then(() => {
+            set({ isPlaying: true, isMuted: false });
+          })
+          .catch((err) => {
+            console.warn('Browser blocked unmuted autoplay. Starting muted; click unmute:', err);
+            el.muted = true;
+            set({ isMuted: true });
+            el.play().then(() => set({ isPlaying: true })).catch(() => undefined);
+          });
+      }
+
+      const dimensions = el && el.videoWidth && el.videoHeight
+        ? { width: el.videoWidth, height: el.videoHeight }
+        : { width: 800, height: 600 };
+
       set({
-        mediaType: isImage ? 'image' : 'video',
+        mediaType: 'video',
         mediaUrl: url,
         mediaName: file.name,
         dimensions,
-        isPlaying: isVideo,
+        isPlaying: true,
+        isMuted: false,
         playbackTime: 0,
-        duration: 0,
+        duration: el?.duration || 0,
       });
-      get().resetHUD(); // viewport fit: 100% zoom, centered
-    } catch (err) {
-      revokeUrl();
-      console.warn('Media load failed:', err);
+      get().resetHUD();
     }
   },
 
   /** Live webcam feed via getUserMedia (MEDIA-02). Same-origin stream. */
   startWebcam: async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      console.warn('getUserMedia unavailable in this browser');
+      alert('Camera access is not supported by your browser.');
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
       stopWebcamInternal(set, get);
       revokeUrl();
       activeStream = stream;
 
       const el = registeredVideo;
       if (el) {
+        el.pause();
+        el.removeAttribute('src');
         el.srcObject = stream;
-        el.play().catch(() => undefined);
+        el.muted = true; // prevent acoustic feedback loop
+        await el.play().catch((err) => console.warn('Webcam play warning:', err));
       }
 
       const track = stream.getVideoTracks()[0];
-      const trackDims = track?.getSettings();
-      const dimensions =
-        trackDims?.width && trackDims?.height
-          ? { width: trackDims.width, height: trackDims.height }
-          : null;
-      set({ mediaType: 'webcam', mediaUrl: null, mediaName: 'live webcam', dimensions });
+      const settings = track?.getSettings();
+      const w = settings?.width || el?.videoWidth || 1280;
+      const h = settings?.height || el?.videoHeight || 720;
+
+      set({
+        mediaType: 'webcam',
+        mediaUrl: null,
+        mediaName: 'live webcam',
+        dimensions: { width: w, height: h },
+        isPlaying: true,
+        playbackTime: 0,
+        duration: 0,
+      });
       get().resetHUD();
-    } catch (err) {
-      console.warn('Webcam access denied or unavailable:', err);
+    } catch (err: any) {
+      console.error('Webcam access error:', err);
+      let msg = 'Unable to access camera: ' + (err.message || err.name);
+      if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        msg = 'Camera is already in use by another application or tab. Please close other camera apps and try again.';
+      } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        msg = 'Camera permission was denied. Please allow camera permissions in your browser address bar.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        msg = 'No video camera found on this device.';
+      }
+      alert(msg);
     }
   },
 
@@ -351,6 +423,7 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
       try {
         registeredVideo.pause();
         registeredVideo.removeAttribute('src');
+        registeredVideo.srcObject = null;
         registeredVideo.load();
       } catch {
         // ignore

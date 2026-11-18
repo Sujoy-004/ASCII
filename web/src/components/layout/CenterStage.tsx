@@ -27,8 +27,6 @@ export default function CenterStage() {
   const ascii = useStudioStore((s) => s.ascii);
   const effect = useStudioStore((s) => s.effect);
   const effectParams = useStudioStore((s) => s.effectParams);
-  const isMuted = useStudioStore((s) => s.isMuted);
-  const setIsMuted = useStudioStore((s) => s.setIsMuted);
   const setIsPlaying = useStudioStore((s) => s.setIsPlaying);
   const setPlaybackTime = useStudioStore((s) => s.setPlaybackTime);
   const setDuration = useStudioStore((s) => s.setDuration);
@@ -116,31 +114,27 @@ export default function CenterStage() {
         pipeline.resize(dimensions.width, dimensions.height);
       };
       img.src = mediaUrl;
-    } else if (mediaType === 'video' && videoRef.current && dimensions) {
+    } else if ((mediaType === 'video' || webcamActive) && videoRef.current) {
       const tex = new THREE.VideoTexture(videoRef.current);
       tex.colorSpace = THREE.SRGBColorSpace;
       pipeline.setSourceTexture(tex);
-      pipeline.resize(dimensions.width, dimensions.height);
-    } else if (webcamActive && videoRef.current && dimensions) {
-      const tex = new THREE.VideoTexture(videoRef.current);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      pipeline.setSourceTexture(tex);
-      pipeline.resize(dimensions.width, dimensions.height);
+      const w = dimensions?.width || videoRef.current.videoWidth || 800;
+      const h = dimensions?.height || videoRef.current.videoHeight || 600;
+      pipeline.resize(w, h);
     } else if (!mediaType) {
       pipeline.clearSource();
     }
   }, [mediaType, mediaUrl, dimensions, webcamActive]);
 
-  // Register live webcam / video elements
+  // Register persistent video element on mount
   useEffect(() => {
-    if (mediaType === 'video' || webcamActive) {
+    if (videoRef.current) {
       registerVideoElement(videoRef.current);
     }
     return () => {
       registerVideoElement(null);
-      if (webcamActive) useStudioStore.getState().stopWebcam();
     };
-  }, [mediaType, webcamActive]);
+  }, []);
 
   const onDragOver = (e: ReactDragEvent<HTMLElement>) => {
     e.preventDefault();
@@ -230,54 +224,52 @@ export default function CenterStage() {
           aria-label="Media viewport canvas"
         />
 
-        {/* Hidden video playback source for video and webcam */}
-        {mediaType === 'video' && mediaUrl && (
-          <video
-            ref={videoRef}
-            src={mediaUrl}
-            loop
-            autoPlay
-            playsInline
-            muted={isMuted}
-            className="pointer-events-none absolute opacity-0 w-0 h-0"
-            onLoadedMetadata={(e) => {
-              const el = e.currentTarget;
-              if (el.videoWidth && el.videoHeight) {
-                setDimensions({ width: el.videoWidth, height: el.videoHeight });
+        {/* Single persistent off-screen video playback element for video and live webcam */}
+        <video
+          ref={videoRef}
+          playsInline
+          preload="auto"
+          loop={mediaType === 'video'}
+          style={{
+            position: 'fixed',
+            top: '-9999px',
+            left: '-9999px',
+            width: '320px',
+            height: '240px',
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+          onLoadedMetadata={(e) => {
+            const el = e.currentTarget;
+            if (el.videoWidth && el.videoHeight) {
+              setDimensions({ width: el.videoWidth, height: el.videoHeight });
+              if (pipelineRef.current) {
+                pipelineRef.current.resize(el.videoWidth, el.videoHeight);
               }
-              setDuration(el.duration || 0);
-              el.play()
-                .then(() => setIsPlaying(true))
-                .catch((err) => {
-                  console.warn('Autoplay unmuted blocked by browser policy:', err);
-                  el.muted = true;
-                  setIsMuted(true);
-                  el.play().then(() => setIsPlaying(true)).catch(() => undefined);
-                });
-            }}
-            onTimeUpdate={(e) => {
-              setPlaybackTime(e.currentTarget.currentTime || 0);
-            }}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-          />
-        )}
-
-        {webcamActive && (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="hidden"
-            onLoadedMetadata={(e) => {
-              const el = e.currentTarget;
-              if (el.videoWidth && el.videoHeight) {
+            }
+            if (el.duration && !isNaN(el.duration)) {
+              setDuration(el.duration);
+            }
+          }}
+          onPlaying={(e) => {
+            const el = e.currentTarget;
+            if (el.videoWidth && el.videoHeight) {
+              const cur = useStudioStore.getState().dimensions;
+              if (!cur || cur.width !== el.videoWidth || cur.height !== el.videoHeight) {
                 setDimensions({ width: el.videoWidth, height: el.videoHeight });
+                if (pipelineRef.current) {
+                  pipelineRef.current.resize(el.videoWidth, el.videoHeight);
+                }
               }
-            }}
-          />
-        )}
+            }
+            setIsPlaying(true);
+          }}
+          onTimeUpdate={(e) => {
+            setPlaybackTime(e.currentTarget.currentTime || 0);
+          }}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+        />
       </div>
 
       {dragOver && (

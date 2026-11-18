@@ -60,7 +60,10 @@ export default function ViewportHUD() {
             onClick={toggleMute}
           >
             {isMuted ? (
-              <VolumeX size={12} strokeWidth={1.5} className="text-dim" />
+              <span className="flex items-center gap-1 text-dim hover:text-highlight">
+                <VolumeX size={12} strokeWidth={1.5} />
+                <span className="text-[10px] tracking-wider text-dim">unmute</span>
+              </span>
             ) : (
               <Volume2 size={12} strokeWidth={1.5} className="text-highlight" />
             )}
