@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -9,15 +12,29 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from src.api.config import config
-from src.api.jobs import ServerBusyError
+from src.api.janitor import ExportJanitor
+from src.api.jobs import ExportJobManager, ServerBusyError
 from src.api.limiter import limiter
 from src.api.routes.export import router as export_router
 from src.api.routes.health import router as health_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan: start storage janitor on boot, terminate on shutdown."""
+    storage_dir = ExportJobManager.get_instance().storage_dir
+    janitor = ExportJanitor(storage_dir=storage_dir, sweep_interval=60)
+    task = asyncio.create_task(janitor.start())
+    yield
+    await janitor.stop()
+    task.cancel()
+
 
 app = FastAPI(
     title="RGB ASCII & Retro FX Studio API",
     version="0.1.0",
     description="Production backend API for high-resolution video and animated GIF export.",
+    lifespan=lifespan,
 )
 
 # Connect SlowAPI rate limiter

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from pathlib import Path
 from typing import Annotated
@@ -25,11 +27,55 @@ from src.api.limiter import limiter
 from src.api.security import (
     consume_download_token,
     get_trusted_client_ip,
+    issue_download_token,
     verify_job_token,
     verify_turnstile_token,
 )
+from src.api.transcode import run_ffmpeg_transcode, validate_assembled_media
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["export"])
+
+
+async def _execute_transcode_job(job_id: str) -> None:
+    """Asynchronous background worker for FFmpeg transcoding and progress telemetry."""
+    manager = ExportJobManager.get_instance()
+    job = manager.get_job(job_id)
+    if not job:
+        return
+
+    job_dir = manager.get_job_dir(job_id)
+    input_path = job_dir / "input.webm"
+    ext = "gif" if job.format == "gif" else "mp4"
+    output_path = job_dir / f"output.{ext}"
+
+    try:
+        # Pre-flight container inspection per D-07
+        validate_assembled_media(
+            input_path=str(input_path),
+            format=job.format,
+            max_duration=job.duration,
+        )
+
+        # Run memory-bounded transcode
+        await run_ffmpeg_transcode(
+            job=job,
+            input_path=str(input_path),
+            output_path=str(output_path),
+        )
+
+        # Issue single-use short-lived download token per D-10
+        download_token = issue_download_token(job_id)
+        manager.complete_job(
+            job_id=job_id,
+            output_path=str(output_path),
+            download_token=download_token,
+        )
+        logger.info("Transcode job %s completed successfully: %s", job_id, output_path)
+
+    except Exception as exc:
+        logger.exception("Transcode job %s failed: %s", job_id, exc)
+        manager.fail_job(job_id, str(exc))
 
 
 class ExportInitRequest(BaseModel):
@@ -229,6 +275,8 @@ async def finalize_export(
         )
 
     manager.transition_job(job_id, "encoding")
+    # Launch background transcoding task
+    asyncio.create_task(_execute_transcode_job(job_id))
 
     return {
         "status": "finalized",
