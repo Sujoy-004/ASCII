@@ -11,7 +11,7 @@
     {
       "number": "2",
       "name": "Studio UI/UX Redesign & Client Shader Pipeline",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "3",
@@ -20,9 +20,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 2 of 3 · 33% · executing"
+    "command": "/gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-11-17T19:06:54.754Z"
+  "updated_at": "2026-11-18T11:31:01.068Z"
 }
