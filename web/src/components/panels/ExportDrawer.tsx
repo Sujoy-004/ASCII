@@ -135,11 +135,13 @@ export default function ExportDrawer() {
   return (
     <div className="flex flex-col gap-2 px-4 pb-3">
       {/* Subtabs */}
-      <div className="grid grid-cols-4 gap-1 text-control">
+      <div className="grid grid-cols-4 gap-1 text-control" role="tablist" aria-label="Export format tabs">
         {(['image', 'text', 'vector', 'clip'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
             onClick={() => setActiveTab(tab)}
             className={`h-6 text-center transition-colors ${
               activeTab === tab ? 'bg-active text-highlight' : 'bg-raised text-dim hover:text-base'

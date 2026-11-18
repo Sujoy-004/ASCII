@@ -121,6 +121,18 @@ export default function ServerExportModal({
     return () => window.clearInterval(interval);
   }, [phase]);
 
+  // Platform dismiss via Escape key per modern-web-guidance dialog guidelines
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && phase !== 'exporting') {
+        handleCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, phase]);
+
   if (!isOpen) return null;
 
   const handleStartExport = () => {
@@ -184,12 +196,17 @@ export default function ServerExportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-mono select-none">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="export-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-mono select-none overscroll-contain"
+    >
       <div className="flex w-full max-w-lg flex-col border border-border bg-raised text-control shadow-2xl">
         {/* Terminal Title Bar */}
         <div className="flex h-8 items-center justify-between border-b border-border bg-active px-3">
           <div className="flex items-center gap-2">
-            <span className="text-highlight font-bold">▲ HIGH-RES EXPORT STUDIO</span>
+            <span id="export-modal-title" className="text-highlight font-bold">▲ HIGH-RES EXPORT STUDIO</span>
             <span className="text-dim text-[11px]">v1.0-render</span>
           </div>
           {/* Pre-warming status pill per D-04 */}
