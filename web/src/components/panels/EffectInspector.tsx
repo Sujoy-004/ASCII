@@ -135,6 +135,48 @@ export default function EffectInspector({ onParamChange }: EffectInspectorProps)
         </div>
       );
 
+    case 'vhs':
+      return (
+        <div className="flex flex-col gap-2">
+          <SliderRow
+            label="scanline intensity"
+            value={effectParams.vhsScanlineIntensity}
+            min={0}
+            max={1}
+            step={0.05}
+            format={(v) => (v === 0 ? 'off' : v.toFixed(2))}
+            onChange={(v) => handleParam('vhsScanlineIntensity', v)}
+          />
+          <SliderRow
+            label="color glitch"
+            value={effectParams.vhsAberration}
+            min={0}
+            max={0.5}
+            step={0.02}
+            format={(v) => (v === 0 ? 'off' : v.toFixed(2))}
+            onChange={(v) => handleParam('vhsAberration', v)}
+          />
+          <SliderRow
+            label="tape noise"
+            value={effectParams.vhsNoiseIntensity}
+            min={0}
+            max={0.5}
+            step={0.02}
+            format={(v) => (v === 0 ? 'off' : v.toFixed(2))}
+            onChange={(v) => handleParam('vhsNoiseIntensity', v)}
+          />
+          <SliderRow
+            label="crt curvature"
+            value={effectParams.vhsCurvature}
+            min={0}
+            max={0.5}
+            step={0.02}
+            format={(v) => (v === 0 ? 'flat' : v.toFixed(2))}
+            onChange={(v) => handleParam('vhsCurvature', v)}
+          />
+        </div>
+      );
+
     case 'matrix':
       return (
         <div className="flex flex-col gap-2">
