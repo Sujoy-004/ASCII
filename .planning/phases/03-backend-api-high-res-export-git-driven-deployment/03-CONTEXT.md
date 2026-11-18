@@ -1,7 +1,7 @@
 # Phase 3: Backend API, High-Res Export & Git-Driven Deployment - Context
 
 **Gathered:** 2026-11-18
-**Status:** Ready for planning
+**Status:** Frozen & Approved for Implementation Planning
 
 <domain>
 ## Phase Boundary
@@ -13,37 +13,102 @@ Build the lightweight FastAPI backend service around the modernized core, connec
 <decisions>
 ## Implementation Decisions
 
-### 1. Rendering Architecture & Preview Parity (Critical)
-- **D-01:** Hybrid Client Canvas Streaming + Backend FFmpeg Transcode. The browser records rendered WebGPU/WebGL2 canvas frames and streams them in chunks to FastAPI; backend FFmpeg transcodes them into high-res H.264 MP4 or two-pass palettized animated GIF, merging original video audio in tight sync. Preserves 100% pixel-perfect shader parity across all 16 Grainrad shaders while keeping backend RAM under 80MB (well below Render's 512MB limit) without headless browser/Puppeteer overhead or Python shader re-implementation. — **Reversibility:** one-way — Architectural foundation defining client-server export contract and data flow.
+### 1. Rendering Architecture & Preview Parity (D-01)
+- **D-01:** Hybrid Canvas Capture, Temporary Backing-Buffer Lock & Controlled Chunk Transport.
+  - **DPI Decoupling & Renderer Reuse:** CSS pan/zoom does not affect `canvas.captureStream()`. The actual issue is `window.devicePixelRatio` multiplying internal canvas dimensions. Reuses the existing Three.js renderer by temporarily setting `pixelRatio = 1.0` and resizing to target export dimensions (`1080p` or `720p`), restoring interactive dimensions and device `pixelRatio` upon export completion or cancellation. Avoids spinning up a second WebGPU context.
+  - **Parity Definition:** Delivers 1:1 mathematical shader-pipeline parity across all 16 retro effects. Bit-for-bit pixel parity is explicitly not promised due to lossy intermediate and distribution video compression.
+  - **Browser Codec Negotiation:** Client negotiates supported codecs: `video/webm;codecs=vp9` → `video/webm;codecs=vp8` → `video/webm` → `video/mp4;codecs=avc1` (for Safari compatibility).
+  - **Target Bitrates & Adaptive Duration:** Treats MediaRecorder bitrate as a target rather than a hard guarantee. Target recording bitrate: 3.5 Mbps for 1080p (`videoBitsPerSecond: 3_500_000` → ~26 MB for 60s) and 2.0 Mbps for 720p.
+  - **Bounded Chunk Queue & Upload Backpressure:** Bounded client-side queue (max 5 chunks in flight) with sequential uploads. If network latency delays chunk delivery, backpressure pauses recording or sheds non-critical frames before buffer exhaustion. Max 5 MB per individual chunk. Hard cumulative upload ceiling of 35 MB enforced client-side and server-side.
+  - — **Reversibility:** one-way — Core client-server export contract and data pipeline foundation.
 
-### 2. Job Lifecycle & API Contract (Critical)
-- **D-02:** Asynchronous Job ID with Short-Polling Lifecycle. API contract: `POST /api/export` creates job and returns job UUID; client polls `GET /api/export/{id}/status` every 1.5s with live progress telemetry; downloads finished file via `GET /api/export/{id}/download`. Immune to Cloudflare/Render 100s HTTP gateway timeouts; periodic status pings keep Render container active to prevent idle spin-down during transcode. — **Reversibility:** costly — Dictates backend routing, job management, and frontend export hooks.
+### 2. Single-Worker Concurrency & Job State Machine (D-02)
+- **D-02:** Single-Worker Architecture with In-Memory Concurrency Lock & Fail-Fast Admission.
+  - **Single Instance & Worker Constraint:** Render free service is explicitly configured for `numInstances: 1` and Uvicorn `--workers 1`. Concurrency admission uses a clean, process-local `asyncio.Lock()`. Horizontal multi-worker scaling would require external distributed locking (e.g., Redis/DB) and is explicitly documented as out of scope for v1.
+  - **Fail-Fast Admission:** Exactly one export job is admitted globally. `POST /api/export/init` acquires the lock; if busy, it returns immediate `HTTP 503 Service Unavailable` with `Retry-After: 30` and `{ "error": "server_busy", "retry_after": 30 }`. No server-side waiting queue in v1.
+  - **8-State Machine (Starts in `capturing`):**
+    `[capturing]` → `[uploading]` → `[encoding]` → `[completed]` (terminal states: `failed`, `cancelled`, `expired`).
+  - **Container Restart Resilience:** When client polls `GET /api/export/{id}/status`, an unknown job ID returns `HTTP 404` with state `expired` and `{ "state": "expired", "message": "Server instance restarted or job expired. Please retry." }`, allowing the UI to trigger a clean retry.
+  - — **Reversibility:** costly — Dictates backend routing, job management, and frontend export hooks.
 
-### 3. Export Progress & Waiting Experience (High)
-- **D-03:** Multi-Stage Retro Terminal Modal Progress Experience. Client export modal presents multi-stage visual progression ("1/3 Capturing Canvas Frames", "2/3 FFmpeg Encoding", "3/3 Ready for Download") with a live percentage bar, elapsed timer, and retro CRT terminal styling. — **Reversibility:** reversible — Frontend UI styling and state mapping.
+### 3. Four-Stage Observable Telemetry (D-03)
+- **D-03:** Multi-Stage Measurable Telemetry (No Fabricated Progress Curves).
+  - **Stage 1 (Canvas Frame Capture):** Measured client-side by `capturedFrames / totalTargetFrames` (0–100%).
+  - **Stage 2 (Chunk Upload):** Measured by `uploadedBytes / totalRecordedBytes` via `XHR.upload.onprogress` (0–100%).
+  - **Stage 3 (FFmpeg Encoding):** Measured server-side by parsing FFmpeg `-progress pipe:1` stdout lines (`out_time_us / target_duration_us`, with live `fps` and `speed` metrics).
+  - **Stage 4 (Ready for Download):** Download button, file size, and 10-minute expiration countdown timer.
+  - — **Reversibility:** reversible — Frontend UI styling and state mapping.
 
-### 4. Server Wake-Up & Cold-Start Notice (Medium)
-- **D-04:** Intent-Driven Pre-Warm with Header Status Pill. Background `GET /api/health` ping triggers when user drops a video file or opens the Export dialog, masking the 30–45s container cold-start delay during normal creative editing. Ambient status pill (`● Engine: Standby` → `● Engine: Ready`) provides non-intrusive server status in the studio header/inspector; protects Render's 750 free monthly compute hours against bounce visits. — **Reversibility:** reversible — Triggers and UI indicators can be adjusted easily.
+### 4. Intent-Driven Pre-Warming & Polling Cadence (D-04)
+- **D-04:** Intent-Driven Pre-Warm with Exponential Backoff Health Polling.
+  - `GET /api/health` triggers only when user explicitly opens the Server Export dialog or selects MP4/Server-GIF format.
+  - Client polling during container wake-up uses exponential backoff (`0s → 3s → 7s → 13s → 21s → 31s → 45s → 60s`), staying strictly within the backend's 30 req/min healthcheck rate limit.
+  - Status pill displays `● Engine: Standby` → `● Engine: Waking up (~30s)...` → `● Engine: Ready`.
+  - — **Reversibility:** reversible — Trigger conditions and UI indicators.
 
-### 5. Audio Handling in Video Exports (High)
-- **D-05:** Single-Pass Streaming Audio Mux with User Mute Toggle. Uses `-map 1:v:0 -map 0:a:0? -c:a aac -b:a 128k -af "aresample=async=1000" -shortest` to preserve original video audio in tight sync with zero intermediate audio disk files. UI provides `[x] Keep Original Audio (Synced)` toggle in export dialog; automatically mutes (`-an`) for animated GIF exports or when disabled by user. — **Reversibility:** reversible — FFmpeg parameter flags and UI toggle.
+### 5. Audio Graph & Reusable Nodes (D-05)
+- **D-05:** Reusable Web Audio Graph with Persistent Node Reuse & Fallback Route.
+  - **Persistent Web Audio Graph:** In `web/src/store/useStudioStore.ts`, creates and reuses a single `MediaElementAudioSourceNode` for the persistent `<video>` element (`registeredVideo`) to prevent browser `InvalidStateError`.
+  - **Dual-Destination Audio Routing:**
+    `[<video>]` → `[Persistent MediaElementAudioSourceNode]` → `[GainNode]`
+    ├──► `AudioContext.destination` (User speakers remain audible during export)
+    └──► `createMediaStreamDestination()` → Audio track added to `canvas.captureStream()`.
+  - **Autoplay Compliance:** `audioContext.resume()` is called directly inside the user's "Start Export" click interaction.
+  - **Source File Preservation:** The original uploaded `File` object is retained in non-reactive storage (`activeFile` in `useStudioStore.ts`) so the server-side audio fallback can read and upload it.
+  - **Server-Side Audio Fallback Endpoint:** Dedicated route `POST /api/export/{id}/source-audio` accepts source media with `X-Clip-Start` and `X-Clip-Duration` headers, using pre-input `-ss` seeking:
+    `ffmpeg -ss <start> -t <duration> -i source_media -i assembled_canvas.webm -map 1:v:0 -map 0:a:0? -c:v copy -c:a aac -b:a 192k -af "aresample=async=1:first_pts=0" -shortest output.mp4`
+  - **Webcam Microphone Opt-In:** Webcam audio requires explicit checkbox opt-in `[ ] Include Microphone Audio`.
+  - **Animated GIFs:** Strictly silent (`-an` enforced; audio routing bypassed).
+  - — **Reversibility:** reversible — FFmpeg parameter flags and Web Audio graph wiring.
 
-### 6. Database & Offline Setup (Medium)
-- **D-06:** Stateless Core with Documented Neon Schema Blueprint (All in v1, No v2). Backend operates 100% stateless and anonymous in production; zero database memory footprint on Render. User presets (custom ASCII characters, shader slider presets) persist client-side in browser `localStorage`/`IndexedDB` with full offline support. Complete deliverable includes `docs/database-schema.sql` (defining `users`, `presets`, `tags`) fulfilling `INFRA-03` scaffolding requirement cleanly. User explicitly confirmed: all requirements completed in v1, no v2. — **Reversibility:** costly — Shifts persistence model permanently to client-side storage for v1 with reference SQL schema.
+### 6. Stateless Architecture with Documented SQL Scaffolding (D-06)
+- **D-06:** Stateless Backend with Documented SQL Blueprint (All in v1, No v2).
+  - Zero database runtime overhead; no `SQLAlchemy`, `asyncpg`, or `alembic` dependencies in `pyproject.toml`.
+  - Standalone SQL reference schema at `docs/database-schema.sql` defining relational tables for future reference without active runtime database initialization.
+  - User presets and settings persist in browser `localStorage`.
+  - — **Reversibility:** costly — Shifts persistence model to client-side storage for v1.
 
-### 7. Security & Resource Limits (Critical)
-- **D-07:** Multi-Layer Defensive Guards for Render 512MB RAM Ceiling. Strict boundaries: 60-second maximum video duration, 1080p maximum resolution, 25MB maximum upload payload. `asyncio.Semaphore(1)` concurrency lock ensures only one heavy transcode runs at a time, rejecting concurrent requests with HTTP 503 ("Server busy encoding, retrying...") to guarantee the container never exceeds 512MB RAM. FFmpeg bounded with `-threads 1 -preset ultrafast` and a hard 90s subprocess timeout. — **Reversibility:** reversible — Limits can be tuned in configuration.
+### 7. Resource Limits, Container Assembly Validation & Benchmarking (D-07)
+- **D-07:** Defensive Resource Limits, Full Container Assembly Validation & 0.1 vCPU Benchmark.
+  - **Provisional Video Limits:** Max 60.0s duration, 1080p max resolution, 30 FPS for 1080p (up to 60 FPS for <=720p), total pixel budget 3.73 × 10⁹ pixel-frames.
+  - **Stricter Animated GIF Limits:** Max 15.0s duration, 720p max resolution, 15 FPS max (10–12 FPS typical), total pixel budget 0.20 × 10⁹ pixel-frames.
+  - **Payload Ceilings:** Max 35 MB total chunks for video, max 20 MB for GIF. Max 5 MB per individual chunk. Max output file size: 50 MB for MP4, 25 MB for GIF.
+  - **Full Container Assembly Validation:** Chunks stream to disk and are assembled into a single file before running `ffprobe` container inspection. Raw individual chunks are never inspected in isolation.
+  - **Benchmark Environment Plan (`bench_export.py`):** Pinned to **512 MB RAM** and **0.1 vCPU** (matching Render free tier). Measures complete process tree RSS (`Python Uvicorn parent + FFmpeg child processes`). Pass criteria: Peak RSS < 250 MB; 30s 1080p encode finishes within 75 seconds.
+  - — **Reversibility:** reversible — Parameter limits and benchmark verification.
 
-### 8. Storage & File Retention (High)
-- **D-08:** Hybrid Pipelined Streaming + Scoped Context Cleanup & Janitor Sweeper. Raw pixel frames stream through standard I/O pipes without writing uncompressed frames to disk. Upload and export files are written to request-scoped temporary directories and immediately removed upon download completion via `try...finally`. Background `asyncio` lifespan sweeper runs on boot and every 10 minutes to purge any orphaned `/tmp` files older than 10 minutes, guaranteeing zero disk accumulation. — **Reversibility:** reversible — Tempfile lifecycle management pattern.
+### 8. Storage Lifecycle, Active State Protection & Quota Defense (D-08)
+- **D-08:** Ephemeral Storage Lifecycle with Active State Protection.
+  - **Separated Timers:**
+    - Upload Inactivity Timeout: 60 seconds (aborts job if no chunk received while in `capturing`/`uploading`).
+    - FFmpeg Subprocess Timeout: 90 seconds (hard process kill).
+    - Maximum Job Lifetime: 10 minutes total (from `init` to transcode complete).
+    - Artifact Retention: 10 minutes post-completion, with 5-minute retry grace period after first download.
+  - **Active Process Protection:** Janitor sweeper runs every 60s. It strictly never purges directories for jobs in active states (`capturing`, `uploading`, `encoding`), verifying both in-memory job state and OS process table PID before removing files.
+  - **Disk Quota Ceiling:** Max 500 MB for `/tmp/ascii_studio_exports/`. If usage exceeds 400 MB, completed jobs older than 2 minutes are purged immediately.
+  - — **Reversibility:** reversible — Cleanup scheduling and directory management.
 
-### 9. Reliability & Production Operations (High)
-- **D-09:** Direct CORS with Git-Driven Blueprints (`render.yaml` & `wrangler.toml`). Frontend deploys to Cloudflare Pages via `wrangler.toml` (`npm run build` targeting `web/dist`); backend deploys to Render via `render.yaml` on native Python runtime with FFmpeg. Direct CORS with regex support for `localhost:5173`, production domain, and Cloudflare Pages preview URLs (`https://*.pages.dev`). — **Reversibility:** costly — Production cloud hosting configurations and deployment pipelines.
+### 9. Hardened Production CORS (D-09)
+- **D-09:** Hardened CORS with Strict Cloudflare Preview Matching.
+  - Allowed Origins: `https://rgb-ascii.pages.dev`, `http://localhost:5173`, `http://127.0.0.1:5173`, and regex `^https:\/\/[a-zA-Z0-9-]+\.rgb-ascii\.pages\.dev$`.
+  - Allowed Headers: `Content-Type`, `X-Job-Token`, `X-Turnstile-Token`, `X-Clip-Start`, `X-Clip-Duration`.
+  - Exposed Headers: `Content-Disposition`, `Content-Length`, `Retry-After`, `X-Job-Token`.
+  - Allowed Methods: `GET`, `POST`, `OPTIONS`.
+  - — **Reversibility:** costly — Production deployment and edge routing configuration.
+
+### 10. Anonymous API Abuse Prevention & Ingress Security (D-10)
+- **D-10:** Ingress Abuse Defense, Validated Proxy Headers & Short-Lived Download Tokens.
+  - **Validated Proxy IP Extraction:** `CF-Connecting-IP` is trusted only after validating that the request originated from published Cloudflare IP address ranges (CIDR blocks). `X-Forwarded-For` is never blindly trusted.
+  - **Header-Based Job Secret Tokens:** State updates, chunk uploads, and status checks require `X-Job-Token: <token>` header (generated via `secrets.token_urlsafe(32)`).
+  - **Short-Lived Single-Use Download Tokens:** When an export completes, the server generates a separate short-lived download token (TTL 5 minutes): `GET /api/export/{id}/download?download_token=<short_token>`. The master job secret token is never exposed in download links or browser URLs.
+  - **Mandatory Turnstile in Production:** If `ENVIRONMENT=production`, missing Turnstile configuration (`TURNSTILE_SECRET_KEY` / `TURNSTILE_SITE_KEY`) causes an explicit server startup error unless `TURNSTILE_DISABLED=true` is explicitly set. Turnstile is gracefully bypassed in local development (`localhost`).
+  - **Per-IP Rate Limits (via `slowapi`):** Max 3 inits / 5 min; max 120 chunk uploads / min; max 60 status polls / min; max 30 health pings / min. Strictly 1 active job per IP.
+  - — **Reversibility:** costly — Ingress security, proxy authentication, and token issuance.
 
 ### the agent's Discretion
-- Internal temporary directory naming conventions and UUID generator for export jobs.
-- Exact progress polling interval cadence (1.5s recommended).
-- Specific CORS configuration regex strings for branch preview deployments.
+- Internal directory structure under `/tmp/ascii_studio_exports/{job_id}/`.
+- Exact backpressure threshold in client chunk queue (3–5 chunks).
+- Format-specific FFmpeg CRF fine-tuning (`crf=23` default for H.264).
 
 </decisions>
 
@@ -66,7 +131,7 @@ Build the lightweight FastAPI backend service around the modernized core, connec
 - `src/renderer.py` — Core luminance and character mapping references
 
 ### Deployment Blueprints & Scaffolding
-- `render.yaml` — Render Blueprint specification for FastAPI web service deployment
+- `render.yaml` — Render Blueprint specification for FastAPI web service deployment (`numInstances: 1`, `--workers 1`)
 - `wrangler.toml` — Cloudflare Pages configuration for React/Vite SPA static edge deployment
 - `docs/database-schema.sql` — Neon PostgreSQL schema scaffolding specification
 
@@ -79,18 +144,26 @@ Build the lightweight FastAPI backend service around the modernized core, connec
 - `src/video.py`: Subprocess handling patterns, seekable temporary stderr buffering, and termination classification (`classify_decode_termination`).
 - `src/audio.py`: `detect_audio_status` via FFprobe for checking whether uploaded video contains audio streams.
 - `src/sync.py`: `probe_video_rate`, `probe_video_size`, and `probe_media_duration` for pre-flight validation against 60s/1080p limits.
-- `web/src/components/studio/ExportModal.tsx`: Existing export modal to be connected to backend video export API and multi-stage progress UI.
-- `web/src/services/exportService.ts`: Existing client-side export utility to be extended with `/api/export` API client.
+- `web/src/store/useStudioStore.ts`: Persistent `<video>` element (`registeredVideo`) and non-reactive media storage (`activeFile`, `activeObjectUrl`, `activeStream`).
+- `web/src/engine/Renderer.ts`: `StudioRenderer` with `setSize` and `setPixelRatio` controls.
+- `web/src/engine/Pipeline.ts`: `StudioPipeline` with `resize` method.
+- `web/src/export/videoExport.ts`: Existing `recordWebmClip` and `recordGifClip` client recording utilities.
+- `web/src/components/panels/ExportDrawer.tsx`: Export tab interface to be wired to the server export modal.
 
 ### Established Patterns
 - Zero-heavy-infra / No-Docker constraint (D-02): Standard Python 3.10+ virtualenv / native packages; Render deploys directly via Python environment.
-- Single-threaded bounded memory execution under Render 512MB RAM ceiling.
+- Single-worker bounded memory execution under Render 512MB RAM ceiling.
 - Hermetic test coverage: Mocked subprocesses and synthetic buffers in `tests/`.
 
 ### Integration Points
-- `src/api/main.py`: New FastAPI application entry point with `/api/health`, `/api/export`, `/api/export/{id}/status`, `/api/export/{id}/download`.
-- `web/src/services/api.ts`: API client with pre-warming healthcheck and job short-polling hook.
-- `render.yaml`: Root configuration for Render web service.
+- `src/api/main.py`: FastAPI application entry point.
+- `src/api/routes/export.py`: Export endpoints (`init`, `chunk`, `source-audio`, `finalize`, `status`, `cancel`, `download`).
+- `src/api/jobs.py`: In-memory `asyncio.Lock` job registry, 8-state machine, and download token manager.
+- `src/api/janitor.py`: Background storage cleanup sweeper with active process protection.
+- `src/api/security.py`: Cloudflare proxy IP validator, rate limiter, and Turnstile verifier.
+- `web/src/services/exportApi.ts`: Client API client with chunk sequencer, backpressure queue, and polling hook.
+- `web/src/components/modals/ServerExportModal.tsx`: Four-stage retro terminal progress modal.
+- `render.yaml`: Root configuration for Render web service (`numInstances: 1`, Uvicorn `--workers 1`).
 - `wrangler.toml`: Root configuration for Cloudflare Pages static edge.
 - `docs/database-schema.sql`: Scaffolding document for Neon PostgreSQL schema.
 
@@ -100,8 +173,9 @@ Build the lightweight FastAPI backend service around the modernized core, connec
 ## Specific Ideas
 
 - **All in v1, Zero v2 Scope:** The user explicitly affirmed that there is no v2; all requirements and features are delivered completely in v1.
-- **Preview Parity via Hybrid Canvas Streaming:** Rendering 16 WebGPU shaders on a free 512MB CPU server is impossible; client records canvas frames directly and FFmpeg transcodes them with original audio multiplexing.
-- **Cold-Start Pre-warming:** Pinging `/api/health` on video load or export panel open hides the 30-45s Render cold start behind normal shader editing time without burning through the 750 free monthly compute hours.
+- **Render Free Reality:** Render Free is treated as a prototype/public-beta deployment. Its 0.1 shared CPU allocation is the dominant constraint, meaning single-thread fast encoding (`-preset ultrafast`) and strict duration limits are paramount.
+- **Web Audio Node Reuse:** Creating `MediaElementAudioSourceNode` repeatedly on the same video element causes an uncatchable browser `InvalidStateError`. Creating it once and keeping it permanently attached to the persistent `<video>` element guarantees robust audio capture across multiple exports.
+- **Short-Lived Download Tokens:** Main job secret token is never placed in the `href` download URL; the client requests or receives a 5-minute single-use download token upon completion.
 
 </specifics>
 
@@ -115,4 +189,4 @@ None — discussion stayed strictly within phase scope. The user explicitly dete
 ---
 
 *Phase: 3-Backend API, High-Res Export & Git-Driven Deployment*
-*Context gathered: 2026-11-18*
+*Context gathered: 2026-11-18 (Frozen & Approved)*
