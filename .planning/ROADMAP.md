@@ -76,14 +76,14 @@ Plans:
   4. `wrangler.toml` and `render.yaml` provide complete Git-driven deployment to Cloudflare Pages and Render on push to `main`.
   5. Neon Serverless PostgreSQL connection and schema scaffolding is configured and documented for future user/preset persistence.
   6. Complete production deployment runs verified at $0/month with zero ongoing infrastructure charges.
-**Plans**: 1/4 plans executed
+**Plans**: 2/4 plans executed
 
 Plans:
 **Wave 1**
 - [x] 03-01-PLAN.md — Build production FastAPI service core, single-job concurrency lock, Cloudflare ingress security, and SlowAPI rate limiting.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 03-02-PLAN.md — Build low-memory FFmpeg video/GIF transcode engine, live progress telemetry parser, audio fallback seeking muxer, and storage janitor.
+- [x] 03-02-PLAN.md — Build low-memory FFmpeg video/GIF transcode engine, live progress telemetry parser, audio fallback seeking muxer, and storage janitor.
 
 **Wave 3** *(blocked on Waves 1 & 2 completion)*
 - [ ] 03-03-PLAN.md — Implement client-side Web Audio graph, DPI decoupling canvas lock, bounded chunk sequencer with backpressure, and retro terminal telemetry modal.
@@ -102,7 +102,7 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Codebase Modernization & Core Extraction | 3/3 | Complete    | 2026-11-17 |
 | 2. Studio UI/UX Redesign & Client Shader Pipeline | 5/5 | Complete    | 2026-11-18 |
-| 3. Backend API, High-Res Export & Deployment | 1/4 | In Progress | - |
+| 3. Backend API, High-Res Export & Deployment | 2/4 | In Progress | - |
 
 ---
 *Roadmap created: 2026-11-16*
