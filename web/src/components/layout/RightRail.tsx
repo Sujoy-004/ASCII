@@ -1,13 +1,11 @@
 import type { ReactNode } from 'react';
 import { useStudioStore } from '../../store/useStudioStore';
-import type { RampPreset } from '../../types/studio';
+import EffectInspector from '../panels/EffectInspector';
 import ToneControls from '../panels/ToneControls';
 
 /**
- * Right docked rail (280px) — inspector groups (D-03): parameter inspector,
- * pre-tone sliders (SHADER-03), export drawer container. Collapses to a
- * 48px icon dock. Export actions wire in plan 02-05; per-effect uniform
- * panels wire in plan 02-04.
+ * Right docked rail (280px) — inspector groups (D-03): dynamic EffectInspector (SHADER-02),
+ * pre-tone sliders (SHADER-03), and export drawer container. Collapses to a 48px icon dock.
  */
 export default function RightRail() {
   const rightCollapsed = useStudioStore((s) => s.rightCollapsed);
@@ -39,9 +37,9 @@ export default function RightRail() {
       className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-hairline bg-base"
       aria-label="Right rail"
     >
-      <GroupHeader title="inspector" state={effect} />
+      <GroupHeader title="effect parameters" state={effect} />
       <div className="px-4 pb-3">
-        <AsciiParams />
+        <EffectInspector />
       </div>
 
       <GroupHeader title="pre-tone" state="rec.601" />
@@ -56,67 +54,6 @@ export default function RightRail() {
         </RailButton>
       </div>
     </aside>
-  );
-}
-
-/** ASCII engine params (SHADER-01) — fully wired to the store. */
-function AsciiParams() {
-  const ascii = useStudioStore((s) => s.ascii);
-  const updateAscii = useStudioStore((s) => s.updateAscii);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <SliderRow
-        label="cell size"
-        value={ascii.cellScale}
-        min={4}
-        max={32}
-        step={1}
-        format={(v) => `${v} px`}
-        onChange={(cellScale) => updateAscii({ cellScale })}
-      />
-      <SliderRow
-        label="char spacing"
-        value={ascii.charSpacing}
-        min={0}
-        max={8}
-        step={0.5}
-        format={(v) => `${v} px`}
-        onChange={(charSpacing) => updateAscii({ charSpacing })}
-      />
-      <SliderRow
-        label="cell aspect"
-        value={ascii.charAspect}
-        min={0.25}
-        max={1}
-        step={0.05}
-        format={(v) => v.toFixed(2)}
-        onChange={(charAspect) => updateAscii({ charAspect })}
-      />
-      <label className="flex h-6 items-center justify-between text-control">
-        <span>glyph ramp</span>
-        <select
-          value={ascii.rampPreset}
-          onChange={(e) => updateAscii({ rampPreset: e.target.value as RampPreset, customChars: '' })}
-          className="h-6 bg-raised px-2 text-control text-highlight hover:bg-active focus-visible:bg-active"
-        >
-          <option value="standard">standard</option>
-          <option value="dense">dense</option>
-          <option value="simple">simple</option>
-          <option value="blocks">blocks</option>
-        </select>
-      </label>
-      <label className="flex h-6 items-center justify-between gap-2 text-control">
-        <span className="shrink-0">custom ramp</span>
-        <input
-          type="text"
-          value={ascii.customChars}
-          placeholder="(uses preset)"
-          onChange={(e) => updateAscii({ customChars: e.target.value })}
-          className="h-6 w-40 bg-raised px-2 text-control text-highlight placeholder:text-dim hover:bg-active focus-visible:bg-active"
-        />
-      </label>
-    </div>
   );
 }
 
@@ -158,45 +95,6 @@ function GroupHeader({ title, state, children }: { title: string; state: string;
     <div className="flex items-center justify-between border-t border-hairline px-4 py-2 text-control text-dim first:border-t-0">
       <span aria-hidden>− {title}</span>
       {children ?? <span className="tabular-nums">{state}</span>}
-    </div>
-  );
-}
-
-/** Slider: 1px hairline track, square thumb, label left / tabular value right. */
-function SliderRow({
-  label,
-  value,
-  min,
-  max,
-  step,
-  format,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  format: (value: number) => string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <div>
-      <div className="flex h-4 items-center justify-between text-control">
-        <span>{label}</span>
-        <span className="tabular-nums text-highlight">{format(value)}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        aria-label={label}
-        data-slider="true"
-        className="h-4 w-full cursor-ew-resize appearance-none bg-transparent"
-      />
     </div>
   );
 }
