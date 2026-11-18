@@ -51,7 +51,12 @@ interface StudioState extends MediaState {
   toggleLeftRail: () => void;
   toggleRightRail: () => void;
 
-  // Media state setters (media ingestion actions land in plan task 3)
+  // Media ingestion (MEDIA-01, MEDIA-02, D-04)
+  loadMediaFile: (file: File) => Promise<void>;
+  startWebcam: () => Promise<void>;
+  stopWebcam: () => void;
+  clearMedia: () => void;
+  openFileBrowser: () => void;
   setMedia: (media: Partial<MediaState>) => void;
   setDimensions: (dimensions: Dimensions) => void;
 }
@@ -76,7 +81,85 @@ export const DEFAULT_ASCII: AsciiSettings = {
 const DEFAULT_PAN: Pan = { x: 0, y: 0 };
 const DEFAULT_ZOOM = 1;
 
-export const useStudioStore = create<StudioState>()((set) => ({
+/** HUD zoom bounds: 10% .. 800% (interactive zoom buttons + wheel). */
+export const ZOOM_MIN = 0.1;
+export const ZOOM_MAX = 8;
+
+function clampZoom(zoom: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+}
+
+/**
+ * Non-reactive media resources. MediaStream and object URLs must never live
+ * in reactive state (T-02-03/T-02-04): they are disposed explicitly here.
+ */
+let activeObjectUrl: string | null = null;
+let activeStream: MediaStream | null = null;
+let registeredVideo: HTMLVideoElement | null = null;
+
+/** CenterStage registers its persistent <video> element for stream feeds. */
+export function registerVideoElement(el: HTMLVideoElement | null): void {
+  registeredVideo = el;
+  if (activeStream && el) {
+    el.srcObject = activeStream;
+    el.play().catch(() => undefined);
+  }
+}
+
+/**
+ * Dropzone registers its hidden file input so the LeftRail source buttons can
+ * open the same browser picker (single ingestion entry point through
+ * loadMediaFile).
+ */
+let browseHandler: (() => void) | null = null;
+
+export function registerBrowseHandler(fn: (() => void) | null): void {
+  browseHandler = fn;
+}
+
+function stopStream(): void {
+  if (!activeStream) return;
+  for (const track of activeStream.getTracks()) track.stop(); // camera indicator off (T-02-04)
+  activeStream = null;
+  if (registeredVideo) registeredVideo.srcObject = null;
+}
+
+function revokeUrl(): void {
+  if (activeObjectUrl) {
+    URL.revokeObjectURL(activeObjectUrl); // unbounded memory guard (T-02-03)
+    activeObjectUrl = null;
+  }
+}
+
+function detachMediaPlayback(): void {
+  stopStream();
+  revokeUrl();
+}
+
+function readImageDimensions(url: string): Promise<Dimensions> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight }); // native, uncapped (D-04)
+    img.onerror = () => reject(new Error('image decode failed'));
+    img.src = url;
+  });
+}
+
+function readVideoDimensions(url: string): Promise<Dimensions> {
+  return new Promise((resolve, reject) => {
+    const probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.onloadedmetadata = () => {
+      resolve({ width: probe.videoWidth, height: probe.videoHeight });
+      probe.removeAttribute('src');
+    };
+    probe.onerror = () => reject(new Error('video decode failed'));
+    probe.src = url;
+  });
+}
+
+export const useStudioStore = create<StudioState>()((set, get) => ({
   mediaType: null,
   mediaUrl: null,
   mediaName: null,
@@ -106,14 +189,111 @@ export const useStudioStore = create<StudioState>()((set) => ({
   toggleLeftRail: () => set((s) => ({ leftCollapsed: !s.leftCollapsed })),
   toggleRightRail: () => set((s) => ({ rightCollapsed: !s.rightCollapsed })),
 
+  /** Image/video ingestion via local blob URL — same-origin, never tainted (Pitfall 2). */
+  loadMediaFile: async (file) => {
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isImage && !isVideo) {
+      console.warn(`Unsupported media type: ${file.type || file.name}`);
+      return;
+    }
+
+    stopWebcamInternal(set, get);
+    revokeUrl();
+
+    const url = URL.createObjectURL(file);
+    activeObjectUrl = url;
+    try {
+      const dimensions = isImage
+        ? await readImageDimensions(url)
+        : await readVideoDimensions(url);
+      set({
+        mediaType: isImage ? 'image' : 'video',
+        mediaUrl: url,
+        mediaName: file.name,
+        dimensions,
+      });
+      get().resetHUD(); // viewport fit: 100% zoom, centered
+    } catch (err) {
+      revokeUrl();
+      console.warn('Media load failed:', err);
+    }
+  },
+
+  /** Live webcam feed via getUserMedia (MEDIA-02). Same-origin stream. */
+  startWebcam: async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      console.warn('getUserMedia unavailable in this browser');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stopWebcamInternal(set, get);
+      revokeUrl();
+      activeStream = stream;
+
+      const el = registeredVideo;
+      if (el) {
+        el.srcObject = stream;
+        el.play().catch(() => undefined);
+      }
+
+      const track = stream.getVideoTracks()[0];
+      const trackDims = track?.getSettings();
+      const dimensions =
+        trackDims?.width && trackDims?.height
+          ? { width: trackDims.width, height: trackDims.height }
+          : null;
+      set({ mediaType: 'webcam', mediaUrl: null, mediaName: 'live webcam', dimensions });
+      get().resetHUD();
+    } catch (err) {
+      console.warn('Webcam access denied or unavailable:', err);
+    }
+  },
+
+  /** Stop all stream tracks and detach the video element (T-02-04). */
+  stopWebcam: () => stopWebcamInternal(set, get),
+
+  /** Return the studio to blank-slate standby (D-04). */
+  clearMedia: () => {
+    detachMediaPlayback();
+    if (registeredVideo) registeredVideo.removeAttribute('src');
+    set({
+      mediaType: null,
+      mediaUrl: null,
+      mediaName: null,
+      dimensions: null,
+    });
+    get().resetHUD();
+  },
+
+  /** Open the shared hidden file input registered by Dropzone. */
+  openFileBrowser: () => {
+    if (!browseHandler) {
+      console.warn('File browser not registered yet (Dropzone not mounted)');
+      return;
+    }
+    browseHandler();
+  },
+
   setMedia: (media) => set(media),
   setDimensions: (dimensions) => set({ dimensions }),
 }));
 
-/** HUD zoom bounds: 10% .. 800% (interactive zoom buttons + wheel). */
-export const ZOOM_MIN = 0.1;
-export const ZOOM_MAX = 8;
-
-function clampZoom(zoom: number): number {
-  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+function stopWebcamInternal(
+  set: (partial: Partial<StudioState>) => void,
+  get: () => StudioState,
+): void {
+  if (activeStream) {
+    stopStream();
+    // Only clear the webcam identity if the current media IS the webcam feed.
+    if (get().mediaType === 'webcam') {
+      set({
+        mediaType: null,
+        mediaUrl: null,
+        mediaName: null,
+        dimensions: null,
+      });
+    }
+  }
 }
