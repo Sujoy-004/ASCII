@@ -25,3 +25,6 @@ Thumbs.db
 .playwright-mcp/
 AGENTS.md
 .env
+.claude/
+.github/
+.gsd/
