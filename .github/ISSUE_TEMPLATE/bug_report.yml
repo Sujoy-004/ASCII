@@ -1,0 +1,52 @@
+name: Bug Report
+description: Create a report to help us improve RGB ASCII & Retro FX Studio
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue!
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: What platform, browser, or terminal are you using?
+      placeholder: e.g. Chrome 130 on Windows 11 / Python 3.11 with Windows Terminal
+    validations:
+      required: true
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Affected Subsystem
+      options:
+        - Web Studio (Browser / WebGPU)
+        - Terminal Player (Python CLI)
+        - Export Backend (FastAPI / FFmpeg)
+        - Documentation / Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can maintainers reproduce the behavior?
+      placeholder: |
+        1. Open https://rgb-ascii.pages.dev
+        2. Drag and drop sample video
+        3. Switch to effect mode ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true

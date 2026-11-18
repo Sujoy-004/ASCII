@@ -3,6 +3,7 @@
 
 Real-time retro visual effects and ASCII studio for images, videos, and live webcam streams across browser, headless API, and terminal interfaces.
 
+[![CI](https://github.com/Sujoy-004/ASCII/actions/workflows/ci.yml/badge.svg)](https://github.com/Sujoy-004/ASCII/actions/workflows/ci.yml)
 [![Live Studio](https://img.shields.io/badge/Live%20Studio-rgb--ascii.pages.dev-00f0ff?style=for-the-badge&logo=cloudflarepages&logoColor=black)](https://rgb-ascii.pages.dev)
 [![Python Version](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -19,6 +20,14 @@ Real-time retro visual effects and ASCII studio for images, videos, and live web
 - **Export Backend**: Production FastAPI microservice running bounded FFmpeg transcoding pipelines to render and download full-resolution MP4 clips and animated GIFs.
 
 🌐 **Try the Live Studio:** [https://rgb-ascii.pages.dev](https://rgb-ascii.pages.dev)
+
+### Quick Start (One Command)
+
+Run the interactive browser studio locally with zero backend dependencies:
+
+```bash
+git clone https://github.com/Sujoy-004/ASCII.git && cd ASCII/web && npm install && npm run dev
+```
 
 ---
 
