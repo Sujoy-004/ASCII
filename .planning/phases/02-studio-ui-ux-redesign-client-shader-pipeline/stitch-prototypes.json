@@ -1,0 +1,41 @@
+{
+  "source": "stitch-mcp",
+  "generatedAt": "2026-11-18T03:27:47Z",
+  "project": {
+    "id": "13429898272245688948",
+    "title": "RGB ASCII & Retro FX Studio",
+    "deviceType": "DESKTOP",
+    "url": "https://stitch.withgoogle.com/projects/13429898272245688948"
+  },
+  "designSystem": {
+    "id": "assets/df6f50a9fc4440308f061263195e879a",
+    "name": "Cathode Retro FX Studio",
+    "tokens": {
+      "background": "#0d0f12",
+      "border": "#26292e",
+      "accentPhosphor": "#33ff66",
+      "accentAmber": "#ffb000",
+      "accentCyan": "#4dd0e1",
+      "fontMono": "JetBrains Mono"
+    }
+  },
+  "screens": [
+    {
+      "id": "bd8d6a99afa84db6a886f4582c52053b",
+      "title": "RGB ASCII & Retro FX Studio",
+      "state": "standby-blank-slate",
+      "screenshotFile": "files/f0408b9dfadb4cc790fdc16302a383c0",
+      "htmlFile": "files/d119550c5eff46ae9f69141ad1c45935",
+      "localScreenshot": "prototypes/02-01-studio-standby.png"
+    },
+    {
+      "id": "1ecf3101e2a940a19f3a1cd0a30a2d18",
+      "title": "RGB ASCII Studio - Active Media (Sunset.png)",
+      "state": "active-media",
+      "screenshotFile": "files/4c4e4a0a2e2a4d088eff363da3b463ce",
+      "htmlFile": "files/289b1f47dcac4904b62f6658d36999b6",
+      "localScreenshot": "prototypes/02-01-studio-active-media.png"
+    }
+  ],
+  "notes": "Standby screen shows three-column layout with dropzone (D-03/D-04). Active screen shows canvas render with populated inspector and library. Source image for active state generated separately (screen 4a5fe7fdf8314cbea6f36a86a2b99d5c)."
+}
