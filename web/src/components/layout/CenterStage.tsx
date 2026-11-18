@@ -54,9 +54,10 @@ export default function CenterStage() {
     };
 
     pipeline.init().then(() => {
+      pipeline.resize(canvas.clientWidth || 800, canvas.clientHeight || 600);
       animId = requestAnimationFrame(loop);
     }).catch((err) => {
-      console.error('Failed to initialize studio shader pipeline:', err);
+      console.warn('Studio shader pipeline init warning:', err);
     });
 
     return () => {
@@ -95,6 +96,7 @@ export default function CenterStage() {
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         const tex = new THREE.Texture(img);
+        tex.colorSpace = THREE.SRGBColorSpace;
         tex.needsUpdate = true;
         pipeline.setSourceTexture(tex);
         pipeline.resize(dimensions.width, dimensions.height);
@@ -102,10 +104,12 @@ export default function CenterStage() {
       img.src = mediaUrl;
     } else if (mediaType === 'video' && videoRef.current && dimensions) {
       const tex = new THREE.VideoTexture(videoRef.current);
+      tex.colorSpace = THREE.SRGBColorSpace;
       pipeline.setSourceTexture(tex);
       pipeline.resize(dimensions.width, dimensions.height);
     } else if (webcamActive && videoRef.current && dimensions) {
       const tex = new THREE.VideoTexture(videoRef.current);
+      tex.colorSpace = THREE.SRGBColorSpace;
       pipeline.setSourceTexture(tex);
       pipeline.resize(dimensions.width, dimensions.height);
     }
@@ -137,6 +141,12 @@ export default function CenterStage() {
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
+    // Only capture pointer on the background stage itself, not when clicking dropzone
+    const target = e.target as HTMLElement;
+    if (target.closest('[role="button"]') || target.closest('button')) {
+      return;
+    }
+
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -157,7 +167,11 @@ export default function CenterStage() {
 
   const onPointerUp = (e: ReactPointerEvent<HTMLElement>) => {
     dragRef.current = null;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
   };
 
   const onPointerCancel = () => {
@@ -172,6 +186,9 @@ export default function CenterStage() {
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      {/* Hidden file input always available on stage */}
+      <Dropzone dragActive={dragOver} />
+
       <div
         className="absolute inset-0 flex touch-none items-center justify-center"
         style={{
@@ -189,9 +206,8 @@ export default function CenterStage() {
           ref={canvasRef}
           className="block bg-base"
           style={{
-            width: dimensions ? `${dimensions.width}px` : '100%',
-            height: dimensions ? `${dimensions.height}px` : '100%',
-            display: mediaType ? 'block' : 'none',
+            width: dimensions ? `${dimensions.width}px` : '800px',
+            height: dimensions ? `${dimensions.height}px` : '600px',
           }}
           aria-label="Media viewport canvas"
         />
@@ -230,8 +246,6 @@ export default function CenterStage() {
             }}
           />
         )}
-
-        {mediaType === null && <Dropzone dragActive={dragOver} />}
       </div>
 
       {dragOver && (

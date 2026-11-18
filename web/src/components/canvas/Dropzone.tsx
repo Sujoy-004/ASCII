@@ -6,12 +6,8 @@ import { useStudioStore, registerBrowseHandler } from '../../store/useStudioStor
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,image/*,video/*';
 
 /**
- * Blank-slate standby dropzone (D-04): dashed 1px hairline frame, `+`
- * affordance, mono copy. The hidden file input stays mounted in BOTH states
- * so the LeftRail source buttons can always open the shared browser picker;
- * only the standby card is conditional. CRT scanline texture is allowed in
- * this empty standby state only (DESIGN.md) — as a background, it captures
- * no pointer events.
+ * Blank-slate standby dropzone (D-04): dashed 1px hairline frame, `+` affordance, mono copy.
+ * The hidden file input stays mounted so LeftRail source buttons can always open the shared browser picker.
  */
 export default function Dropzone({ dragActive }: { dragActive: boolean }) {
   const loadMediaFile = useStudioStore((s) => s.loadMediaFile);
@@ -37,29 +33,31 @@ export default function Dropzone({ dragActive }: { dragActive: boolean }) {
         }}
       />
       {!mediaType && (
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label="Load media: drop a file or click to browse"
-          onClick={() => inputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              inputRef.current?.click();
-            }
-          }}
-          className={`pointer-events-auto flex max-w-md cursor-pointer flex-col items-center gap-3 px-10 py-8 text-center transition-colors duration-fast ${
-            dragActive
-              ? 'border border-solid border-hairline bg-active' // frame steps to solid while dragging (DESIGN.md)
-              : 'border border-dashed border-hairline hover:bg-active'
-          }`}
-          style={{ backgroundImage: 'var(--scanline)' }}
-        >
-          <Plus size={20} strokeWidth={1} className="text-highlight" aria-hidden />
-          <p className="text-default">drop image or video / or browse</p>
-          <p className="text-control text-dim">
-            png · jpg · webp · gif · mp4 · webm — native dimensions
-          </p>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Load media: drop a file or click to browse"
+            onClick={() => inputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                inputRef.current?.click();
+              }
+            }}
+            className={`pointer-events-auto flex max-w-md cursor-pointer flex-col items-center gap-3 px-10 py-8 text-center transition-colors duration-fast ${
+              dragActive
+                ? 'border border-solid border-hairline bg-active'
+                : 'border border-dashed border-hairline hover:bg-active bg-base'
+            }`}
+            style={{ backgroundImage: 'var(--scanline)' }}
+          >
+            <Plus size={20} strokeWidth={1} className="text-highlight" aria-hidden />
+            <p className="text-default font-medium">drop image or video / or browse</p>
+            <p className="text-control text-dim">
+              png · jpg · webp · gif · mp4 · webm — native dimensions
+            </p>
+          </div>
         </div>
       )}
     </>

@@ -27,37 +27,41 @@ export class StudioRenderer {
 
     if (hasWebGPU) {
       try {
-        this.renderer = new THREE.WebGPURenderer({
+        const webgpuRenderer = new THREE.WebGPURenderer({
           canvas: this.canvas,
           antialias: false,
+          depth: false,
+          stencil: false,
           powerPreference: 'high-performance',
         });
-        await this.renderer.init();
+        await webgpuRenderer.init();
+        this.renderer = webgpuRenderer;
         this.isWebGLFallback = false;
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         return;
       } catch (err) {
         console.warn('WebGPU init failed, attempting WebGL2 fallback:', err);
-        if (this.renderer) {
-          try {
-            this.renderer.dispose();
-          } catch {
-            // ignore cleanup errors during fallback switch
-          }
-        }
       }
     }
 
     // WebGL fallback path
-    this.renderer = new THREE.WebGPURenderer({
-      canvas: this.canvas,
-      antialias: false,
-      forceWebGL: true,
-      powerPreference: 'high-performance',
-    });
-    await this.renderer.init();
-    this.isWebGLFallback = true;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    try {
+      const webglRenderer = new THREE.WebGPURenderer({
+        canvas: this.canvas,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        forceWebGL: true,
+        powerPreference: 'high-performance',
+      });
+      await webglRenderer.init();
+      this.renderer = webglRenderer;
+      this.isWebGLFallback = true;
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    } catch (err) {
+      console.error('WebGL2 backend init also failed:', err);
+      throw err;
+    }
   }
 
   getRenderer(): THREE.WebGPURenderer {
