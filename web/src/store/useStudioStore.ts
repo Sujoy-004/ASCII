@@ -133,6 +133,22 @@ function clampZoom(zoom: number): number {
 let activeObjectUrl: string | null = null;
 let activeStream: MediaStream | null = null;
 let registeredVideo: HTMLVideoElement | null = null;
+let activeFile: File | null = null;
+
+/** Retrieve pristine active uploaded File for server-side audio fallback per D-05. */
+export function getActiveFile(): File | null {
+  return activeFile;
+}
+
+/** Retrieve registered persistent <video> element. */
+export function getRegisteredVideo(): HTMLVideoElement | null {
+  return registeredVideo;
+}
+
+/** Retrieve active webcam MediaStream if active. */
+export function getActiveStream(): MediaStream | null {
+  return activeStream;
+}
 
 /** CenterStage registers its persistent <video> element for stream feeds. */
 export function registerVideoElement(el: HTMLVideoElement | null): void {
@@ -182,6 +198,7 @@ function revokeUrl(): void {
 function detachMediaPlayback(): void {
   stopStream();
   revokeUrl();
+  activeFile = null;
 }
 
 function readImageDimensions(url: string): Promise<Dimensions> {
@@ -297,6 +314,7 @@ export const useStudioStore = create<StudioState>()((set, get) => ({
 
     const url = URL.createObjectURL(file);
     activeObjectUrl = url;
+    activeFile = file;
 
     if (isImage) {
       try {
