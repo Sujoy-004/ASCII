@@ -1,6 +1,6 @@
 # Runtime dependencies for the FastAPI Backend on Render
 # Audited for package legitimacy and pinned with minimum verified versions
-fastapi>=0.135.2
+fastapi>=0.162.5
 uvicorn>=0.42.0
 slowapi>=0.1.9
 httpx>=0.28.1
