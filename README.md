@@ -9,6 +9,10 @@ Real-time retro visual effects and ASCII studio for images, videos, and live web
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![WebGPU](https://img.shields.io/badge/WebGPU-Three.js%20TSL-990000?style=for-the-badge&logo=webgpu&logoColor=white)](https://threejs.org/)
 
+![RGB ASCII & Retro FX Studio real-time browser demonstration showing original graphic transformation into ASCII glyph art, Bayer dither, and VHS scanlines](assets/demo/rgb-ascii-studio-demo.gif)
+
+> 🚀 **Live Studio:** [rgb-ascii.pages.dev/studio/](https://rgb-ascii.pages.dev/studio/) &nbsp;|&nbsp; 🌐 **Product Overview:** [rgb-ascii.pages.dev](https://rgb-ascii.pages.dev) &nbsp;|&nbsp; ⚡ **Quick Start:** `cd web && npm install && npm run dev`
+
 ---
 
 ## Overview
