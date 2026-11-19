@@ -37,7 +37,13 @@ export default function App() {
         className="flex h-6 shrink-0 items-center justify-between border-b border-hairline px-2 text-control text-dim select-none"
         role="banner"
       >
-        <span className="truncate">rgb-ascii studio v0.1.0 [webgpu]</span>
+        <a
+          href="/"
+          title="Return to Product Overview"
+          className="truncate text-dim hover:text-highlight transition-colors"
+        >
+          rgb-ascii studio v0.1.0 [webgpu]
+        </a>
         <span className="hidden sm:inline">
           local session <span className="text-highlight">● offline-ready</span>
         </span>

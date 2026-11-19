@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>404 Not Found — RGB ASCII &amp; Retro FX Studio</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-base: #0a0a0a;
+        --border-hairline: #222222;
+        --text-dim: #777777;
+        --text-default: #888888;
+        --text-highlight: #cccccc;
+        --text-max: #ffffff;
+        --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        border-radius: 0;
+      }
+      body {
+        min-height: 100vh;
+        background-color: var(--bg-base);
+        color: var(--text-default);
+        font-family: var(--font-mono);
+        font-size: 14px;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 24px;
+      }
+      .box {
+        max-width: 520px;
+        width: 100%;
+        border: 1px solid var(--border-hairline);
+        background: #0f0f0f;
+        padding: 24px;
+      }
+      .tag {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: 12px;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 500;
+        color: var(--text-max);
+        margin-bottom: 12px;
+      }
+      p {
+        margin-bottom: 20px;
+        color: var(--text-default);
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      a {
+        display: inline-block;
+        padding: 8px 16px;
+        font-size: 12px;
+        text-decoration: none;
+        transition: background 120ms ease, color 120ms ease;
+      }
+      a.primary {
+        background: var(--text-max);
+        color: var(--bg-base);
+        font-weight: 600;
+      }
+      a.primary:hover {
+        background: var(--text-highlight);
+      }
+      a.secondary {
+        border: 1px solid var(--border-hairline);
+        color: var(--text-highlight);
+      }
+      a.secondary:hover {
+        background: #181818;
+        color: var(--text-max);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <div class="tag">Error 404 // Route Undefined</div>
+      <h1>Requested Target Not Found</h1>
+      <p>
+        The path you requested does not exist on this server. Return to the product overview or launch the interactive studio.
+      </p>
+      <div class="actions">
+        <a href="/" class="secondary">← Product Overview</a>
+        <a href="/studio/" class="primary">Open Studio →</a>
+      </div>
+    </div>
+  </body>
+</html>

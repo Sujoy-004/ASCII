@@ -1,1 +1,3 @@
-/*    /index.html   200
+# Cloudflare Pages Redirects & Rewrites
+/studio     /studio/            301
+/studio/*   /studio/index.html  200

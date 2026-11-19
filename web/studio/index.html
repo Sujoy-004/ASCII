@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Studio — RGB ASCII &amp; Retro FX Studio</title>
+    <meta
+      name="description"
+      content="Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href="https://rgb-ascii.pages.dev/studio/" />
+    <meta property="og:title" content="Studio — RGB ASCII &amp; Retro FX Studio" />
+    <meta
+      property="og:description"
+      content="Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds."
+    />
+    <meta property="og:url" content="https://rgb-ascii.pages.dev/studio/" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Studio — RGB ASCII &amp; Retro FX Studio" />
+    <meta
+      name="twitter:description"
+      content="Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a0a; /* --bg-base, pre-CSS so first paint never flashes white */
+      }
+    </style>
+  </head>
+  <body class="studio-shell">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

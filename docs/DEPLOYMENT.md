@@ -11,7 +11,7 @@ The platform is architected for strict $0/month operations across free-tier serv
 
 | Component | Target Platform | Specification File | Live URL |
 |-----------|-----------------|--------------------|----------|
-| **Frontend Studio** | Cloudflare Pages | `wrangler.toml` | `https://rgb-ascii.pages.dev` |
+| **Frontend Studio & Landing Page** | Cloudflare Pages | `wrangler.toml` | `https://rgb-ascii.pages.dev` (Overview), `https://rgb-ascii.pages.dev/studio/` (Studio) |
 | **Backend Export API** | Render (Free Web Service) | `render.yaml` | <!-- VERIFY: Deployed Render backend service URL --> `https://rgb-ascii-api.onrender.com` |
 
 ---
@@ -34,7 +34,7 @@ This produces optimized production assets in `web/dist/`, including `index.html`
 npx wrangler pages deploy web/dist --project-name=rgb-ascii --commit-dirty=true
 ```
 
-Upon successful deployment, Cloudflare immediately propagates DNS and serves the application under `https://rgb-ascii.pages.dev` with edge SSL and HTTP/3 support.
+Upon successful deployment, Cloudflare immediately propagates DNS and serves the product landing page under `https://rgb-ascii.pages.dev/` and the interactive studio under `https://rgb-ascii.pages.dev/studio/` with edge SSL and HTTP/3 support. Non-matching paths return a custom 404 page with 404 status.
 
 ---
 

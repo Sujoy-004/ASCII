@@ -1,0 +1,102 @@
+@import 'tailwindcss';
+
+:root {
+  --bg-base: #0a0a0a;
+  --bg-active: #0f0f0f;
+  --bg-raised: #151515;
+  --border-hairline: #222222;
+  --border-subtle: #1a1a1a;
+  --text-dim: #777777;
+  --text-default: #888888;
+  --text-highlight: #cccccc;
+  --text-max: #ffffff;
+  --accent-cyan: #00f0ff;
+  --accent-amber: #e6a700;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+}
+
+@theme inline {
+  --color-base: var(--bg-base);
+  --color-active: var(--bg-active);
+  --color-raised: var(--bg-raised);
+  --color-hairline: var(--border-hairline);
+  --color-subtle: var(--border-subtle);
+  --color-dim: var(--text-dim);
+  --color-default: var(--text-default);
+  --color-highlight: var(--text-highlight);
+  --color-max: var(--text-max);
+  --color-cyan: var(--accent-cyan);
+  --color-amber: var(--accent-amber);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  box-sizing: border-box;
+  border-radius: 0 !important;
+}
+
+html {
+  background-color: var(--bg-base);
+  color: var(--text-default);
+  font-family: var(--font-mono);
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #333333;
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text-highlight);
+  outline-offset: 2px;
+}
+
+/* Hairline borders */
+.border-hairline {
+  border-color: var(--border-hairline);
+}
+
+/* Subtle CRT scanline effect on hero badge / demo frame */
+.crt-texture {
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.015) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: #262626;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}

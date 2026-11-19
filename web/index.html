@@ -3,34 +3,938 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark light" />
-    <title>RGB ASCII &amp; Retro FX Studio</title>
-    <meta name="description" content="Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds." />
+    <meta name="color-scheme" content="dark" />
+    <title>RGB ASCII &amp; Retro FX Studio — Real-Time WebGPU Shaders, Terminal Player &amp; Export API</title>
+    <meta
+      name="description"
+      content="Transform images, videos, and live webcam feeds into real-time ASCII art, dithering, CRT scanlines, and retro computer graphics. Zero-install WebGPU browser studio, Python ANSI True Color terminal player, and FastAPI export service."
+    />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="canonical" href="https://rgb-ascii.pages.dev" />
+    <link rel="canonical" href="https://rgb-ascii.pages.dev/" />
+
+    <!-- Open Graph Metadata -->
     <meta property="og:title" content="RGB ASCII &amp; Retro FX Studio" />
-    <meta property="og:description" content="Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds." />
-    <meta property="og:url" content="https://rgb-ascii.pages.dev" />
+    <meta
+      property="og:description"
+      content="Real-time WebGPU retro visual effects and ASCII studio. Browser canvas, ANSI True Color terminal CLI, and FastAPI export microservice."
+    />
+    <meta property="og:url" content="https://rgb-ascii.pages.dev/" />
     <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://rgb-ascii.pages.dev/studio-active-1280.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="800" />
+    <meta property="og:image:alt" content="RGB ASCII and Retro FX Studio web interface running in real-time" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="RGB ASCII &amp; Retro FX Studio" />
-    <meta name="twitter:description" content="Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds." />
+    <meta
+      name="twitter:description"
+      content="Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds."
+    />
+    <meta name="twitter:image" content="https://rgb-ascii.pages.dev/studio-active-1280.png" />
+
+    <!-- Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
-    <style>
-      html,
-      body {
-        margin: 0;
-        background: #0a0a0a; /* --bg-base, pre-CSS so first paint never flashes white */
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/src/landing.css" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "RGB ASCII & Retro FX Studio",
+        "url": "https://rgb-ascii.pages.dev/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "All modern browsers (WebGPU/WebGL2), Linux, macOS, Windows",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": "Real-time WebGPU retro visual effects and ASCII studio for images, videos, and live webcam feeds. Includes Python ANSI True Color terminal player and FastAPI export service.",
+        "browserRequirements": "Requires WebGPU or WebGL2 capable browser",
+        "featureList": [
+          "16 real-time retro visual shaders (ASCII glyph atlas, Floyd-Steinberg and Bayer dithering, CRT VHS, Matrix rain, pixel sorting, contour, blockify)",
+          "Three.js WebGPU engine with automatic WebGL2 backend fallback",
+          "Image, video file, and live webcam stream inputs",
+          "Client-side exports (PNG, JPEG, GIF up to 5s, vector SVG, Rec. 601 plain text, WebM)",
+          "Python ANSI 24-bit True Color terminal player with FFplay audio sync and adaptive load shedding",
+          "FastAPI and FFmpeg server-side export microservice with Turnstile verification"
+        ]
       }
-    </style>
+    </script>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+  <body class="bg-base text-default selection:bg-neutral-800 selection:text-white">
+    <!-- Top Global Bar -->
+    <header
+      class="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-hairline bg-[#0a0a0ae6] px-4 backdrop-blur-md sm:px-8"
+      role="banner"
+    >
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2 text-highlight hover:text-white transition-colors">
+          <svg class="h-4 w-4 text-highlight" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="0"></rect>
+            <path d="M7 8h10M7 12h10M7 16h6"></path>
+          </svg>
+          <span class="text-xs font-semibold uppercase tracking-wider text-white">RGB ASCII &amp; Retro FX</span>
+        </a>
+        <span class="hidden border border-hairline bg-raised px-1.5 py-0.5 text-[10px] text-dim md:inline">
+          v0.1.0 · TSL WebGPU
+        </span>
+      </div>
+
+      <!-- Desktop Nav -->
+      <nav class="hidden items-center gap-6 text-xs md:flex" aria-label="Main Navigation">
+        <a href="#surfaces" class="text-default hover:text-white transition-colors">Surfaces</a>
+        <a href="#effects" class="text-default hover:text-white transition-colors">16 Shaders</a>
+        <a href="#architecture" class="text-default hover:text-white transition-colors">Specifications</a>
+        <a href="#quickstart" class="text-default hover:text-white transition-colors">Quick Start</a>
+        <a href="#faq" class="text-default hover:text-white transition-colors">FAQ</a>
+        <a
+          href="https://github.com/Sujoy-004/ASCII"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-default hover:text-white transition-colors"
+        >
+          GitHub
+        </a>
+        <a
+          href="/studio/"
+          class="border border-white bg-white px-3 py-1.5 text-xs font-medium text-black hover:bg-neutral-200 transition-colors"
+        >
+          Open Studio →
+        </a>
+      </nav>
+
+      <!-- Mobile Nav Trigger -->
+      <div class="flex items-center gap-2 md:hidden">
+        <a
+          href="/studio/"
+          class="border border-white bg-white px-2.5 py-1 text-xs font-medium text-black hover:bg-neutral-200"
+        >
+          Studio →
+        </a>
+        <button
+          id="mobile-nav-toggle"
+          type="button"
+          aria-label="Toggle navigation menu"
+          aria-expanded="false"
+          class="border border-hairline p-1 text-highlight hover:bg-raised"
+        >
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Mobile Nav Menu (hidden by default) -->
+    <div
+      id="mobile-nav-menu"
+      class="hidden border-b border-hairline bg-raised px-4 py-4 text-xs md:hidden"
+      role="navigation"
+    >
+      <div class="flex flex-col gap-3">
+        <a href="#surfaces" class="text-highlight py-1">Surfaces</a>
+        <a href="#effects" class="text-highlight py-1">16 Shaders</a>
+        <a href="#architecture" class="text-highlight py-1">Specifications</a>
+        <a href="#quickstart" class="text-highlight py-1">Quick Start</a>
+        <a href="#faq" class="text-highlight py-1">FAQ</a>
+        <a
+          href="https://github.com/Sujoy-004/ASCII"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-highlight py-1"
+        >
+          GitHub Repository
+        </a>
+        <a
+          href="/studio/"
+          class="mt-2 block border border-white bg-white py-2 text-center font-semibold text-black"
+        >
+          Open Studio →
+        </a>
+      </div>
+    </div>
+
+    <main id="main-content">
+      <!-- HERO SECTION -->
+      <section class="border-b border-hairline px-4 py-16 sm:px-8 sm:py-24 lg:py-28">
+        <div class="mx-auto max-w-5xl">
+          <!-- Terminal Status Pill -->
+          <div class="mb-6 inline-flex items-center gap-2 border border-hairline bg-raised px-3 py-1 text-xs text-dim">
+            <span class="inline-block h-1.5 w-1.5 bg-emerald-400"></span>
+            <span>PRODUCTION READY</span>
+            <span class="text-hairline">|</span>
+            <span>THREE.JS WEBGPU &amp; TSL SHADERS</span>
+            <span class="text-hairline">|</span>
+            <span>ANSI TERMINAL PLAYER</span>
+          </div>
+
+          <!-- Main H1 -->
+          <h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight">
+            Turn images and videos into live ASCII art and retro effects
+          </h1>
+
+          <!-- Subtitle / Value Proposition -->
+          <p class="mt-6 max-w-3xl text-sm sm:text-base text-default leading-relaxed">
+            RGB ASCII &amp; Retro FX Studio is a dedicated visual processing engine for creative developers, artists, and terminal power users. Run real-time GPU retro shaders in your browser with zero server roundtrips, stream 24-bit ANSI True Color video with synchronized audio in your terminal, or batch-render full-resolution clips via a bounded export microservice.
+          </p>
+
+          <!-- Action Buttons -->
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+            <a
+              href="/studio/"
+              class="inline-flex items-center justify-center border border-white bg-white px-5 py-2.5 text-xs font-semibold text-black hover:bg-neutral-200 transition-colors"
+            >
+              Open Studio →
+            </a>
+            <a
+              href="https://github.com/Sujoy-004/ASCII"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center justify-center border border-hairline bg-raised px-5 py-2.5 text-xs text-highlight hover:border-neutral-500 hover:text-white transition-colors"
+            >
+              View on GitHub
+            </a>
+            <a
+              href="#quickstart"
+              class="inline-flex items-center justify-center border border-transparent px-4 py-2.5 text-xs text-dim hover:text-highlight transition-colors"
+            >
+              Developer Quickstart ↓
+            </a>
+          </div>
+
+          <!-- Feature Grid Badges -->
+          <div class="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 text-xs">
+            <div class="border border-hairline bg-raised p-3">
+              <div class="text-[10px] text-dim uppercase">Engine</div>
+              <div class="mt-1 font-medium text-white">Three.js WebGPU</div>
+              <div class="mt-0.5 text-[11px] text-dim">WebGL2 Fallback</div>
+            </div>
+            <div class="border border-hairline bg-raised p-3">
+              <div class="text-[10px] text-dim uppercase">Shaders</div>
+              <div class="mt-1 font-medium text-white">16 Retro Modes</div>
+              <div class="mt-0.5 text-[11px] text-dim">ASCII, CRT, Matrix</div>
+            </div>
+            <div class="border border-hairline bg-raised p-3">
+              <div class="text-[10px] text-dim uppercase">Terminal</div>
+              <div class="mt-1 font-medium text-white">ANSI True Color</div>
+              <div class="mt-0.5 text-[11px] text-dim">Audio Sync &amp; ▀ Half-Block</div>
+            </div>
+            <div class="border border-hairline bg-raised p-3">
+              <div class="text-[10px] text-dim uppercase">Privacy</div>
+              <div class="mt-1 font-medium text-white">100% Local Studio</div>
+              <div class="mt-0.5 text-[11px] text-dim">Zero Media Uploads</div>
+            </div>
+            <div class="border border-hairline bg-raised p-3 col-span-2 sm:col-span-1">
+              <div class="text-[10px] text-dim uppercase">Backend API</div>
+              <div class="mt-1 font-medium text-white">FastAPI / FFmpeg</div>
+              <div class="mt-0.5 text-[11px] text-dim">Chunked MP4 &amp; GIF Export</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREENSHOT & DEMO SHOWCASE -->
+      <section class="border-b border-hairline px-4 py-16 sm:px-8">
+        <div class="mx-auto max-w-5xl">
+          <div class="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+            <div>
+              <div class="text-[11px] uppercase tracking-wider text-dim">Direct Product Interface</div>
+              <h2 class="text-xl font-semibold text-white sm:text-2xl">Interactive Web Studio Workspace</h2>
+            </div>
+            <a
+              href="/studio/"
+              class="inline-flex items-center text-xs text-highlight hover:text-white transition-colors"
+            >
+              Launch Studio Workspace →
+            </a>
+          </div>
+
+          <!-- Studio Frame with Actual Screenshot -->
+          <div class="overflow-hidden border border-hairline bg-[#0f0f0f]">
+            <!-- Frame Header -->
+            <div class="flex h-7 items-center justify-between border-b border-hairline bg-raised px-3 text-[11px] text-dim">
+              <div class="flex items-center gap-2">
+                <span class="inline-block h-2 w-2 border border-dim bg-neutral-800"></span>
+                <span class="text-highlight">rgb-ascii studio v0.1.0 [webgpu]</span>
+              </div>
+              <div class="hidden sm:flex items-center gap-4 text-[11px]">
+                <span>Pipeline: Three.js TSL</span>
+                <span>Color Space: Rec. 601 Linear</span>
+                <span class="text-emerald-400">● Local GPU Buffer</span>
+              </div>
+            </div>
+
+            <!-- Crisp Real Screenshot Asset -->
+            <div class="relative bg-black">
+              <img
+                src="/studio-active-1280.png"
+                alt="Interactive RGB ASCII and Retro FX Studio interface showing 16 shader modes on the left rail, real-time WebGPU canvas preview in center stage, tone curve controls, and export drawer"
+                width="1280"
+                height="800"
+                class="w-full h-auto block"
+                loading="eager"
+              />
+            </div>
+
+            <!-- Frame Footer Bar with CTA -->
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-hairline bg-raised p-3 text-xs">
+              <div class="text-dim">
+                Drag &amp; drop photos, load videos, or stream webcam feeds directly into the interactive workspace.
+              </div>
+              <div>
+                <a
+                  href="/studio/"
+                  class="inline-block border border-white bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-neutral-200 transition-colors"
+                >
+                  Open Live Studio →
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- THREE SURFACES SECTION -->
+      <section id="surfaces" class="border-b border-hairline px-4 py-16 sm:px-8">
+        <div class="mx-auto max-w-5xl">
+          <div class="mb-10">
+            <div class="text-[11px] uppercase tracking-wider text-dim">Architecture &amp; Surfaces</div>
+            <h2 class="text-xl font-semibold text-white sm:text-2xl">Three Specialized Production Surfaces</h2>
+            <p class="mt-2 max-w-2xl text-xs text-default">
+              RGB ASCII is architected as three distinct components rather than a single monolith. Client-side preview, terminal rendering, and cloud transcoding are strictly segregated.
+            </p>
+          </div>
+
+          <div class="grid gap-6 md:grid-cols-3">
+            <!-- Surface 1: Browser Studio -->
+            <div class="flex flex-col border border-hairline bg-raised p-5">
+              <div class="flex items-center justify-between border-b border-hairline pb-3">
+                <span class="text-[10px] text-dim uppercase">Surface 01</span>
+                <span class="border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-[10px] text-highlight">
+                  Client GPU
+                </span>
+              </div>
+              <h3 class="mt-4 text-sm font-semibold text-white">Browser Interactive Studio</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed flex-1">
+                Zero-install client web application running Three.js WebGPU and Three Shading Language (TSL). Automatically falls back to WebGL2 on unsupported browsers.
+              </p>
+              <ul class="mt-4 space-y-1.5 border-t border-hairline pt-3 text-[11px] text-dim">
+                <li><strong class="text-highlight">Inputs:</strong> PNG, JPG, WebP, GIF, MP4, WebM, Live Webcam</li>
+                <li><strong class="text-highlight">Shaders:</strong> 16 realtime shader modes with live parameter sliders</li>
+                <li><strong class="text-highlight">Tone:</strong> Rec. 601 brightness, contrast, saturation, hue, gamma, invert</li>
+                <li><strong class="text-highlight">Client Exports:</strong> PNG, JPEG, GIF (1-5s), SVG, .txt grid, WebM</li>
+                <li><strong class="text-highlight">Privacy:</strong> 100% on-device GPU processing; zero file uploads</li>
+              </ul>
+              <div class="mt-5 pt-3 border-t border-hairline">
+                <a href="/studio/" class="text-xs font-medium text-white hover:underline">
+                  Launch Studio App →
+                </a>
+              </div>
+            </div>
+
+            <!-- Surface 2: Python Terminal Player -->
+            <div class="flex flex-col border border-hairline bg-raised p-5">
+              <div class="flex items-center justify-between border-b border-hairline pb-3">
+                <span class="text-[10px] text-dim uppercase">Surface 02</span>
+                <span class="border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-[10px] text-highlight">
+                  Local Terminal
+                </span>
+              </div>
+              <h3 class="mt-4 text-sm font-semibold text-white">Python ANSI True Color CLI</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed flex-1">
+                High-performance terminal video player built using standard-library Python. Emits 24-bit True Color escapes (<code class="text-dim">\x1b[38;2;R;G;Bm</code>) with synchronized audio.
+              </p>
+              <ul class="mt-4 space-y-1.5 border-t border-hairline pt-3 text-[11px] text-dim">
+                <li><strong class="text-highlight">Resolution:</strong> Half-block mode (<code class="text-highlight">▀</code>) for 2× vertical cell resolution</li>
+                <li><strong class="text-highlight">Audio Sync:</strong> Master clock sync with adaptive frame load shedding</li>
+                <li><strong class="text-highlight">Smoothing:</strong> Temporal alpha smoothing reduces ASCII scintillation</li>
+                <li><strong class="text-highlight">Pipeline:</strong> Subprocess FFmpeg pipe decoding + FFplay audio playback</li>
+                <li><strong class="text-highlight">Zero Deps:</strong> Pure standard library Python 3.10+ runtime</li>
+              </ul>
+              <div class="mt-5 pt-3 border-t border-hairline">
+                <a href="#quickstart" class="text-xs font-medium text-white hover:underline">
+                  CLI Quickstart Guide →
+                </a>
+              </div>
+            </div>
+
+            <!-- Surface 3: Export API Service -->
+            <div class="flex flex-col border border-hairline bg-raised p-5">
+              <div class="flex items-center justify-between border-b border-hairline pb-3">
+                <span class="text-[10px] text-dim uppercase">Surface 03</span>
+                <span class="border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-[10px] text-highlight">
+                  FastAPI Cloud
+                </span>
+              </div>
+              <h3 class="mt-4 text-sm font-semibold text-white">High-Resolution Export API</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed flex-1">
+                Production FastAPI microservice for heavy transcoding tasks. Renders high-resolution MP4 video and animated GIFs with original source audio preservation.
+              </p>
+              <ul class="mt-4 space-y-1.5 border-t border-hairline pt-3 text-[11px] text-dim">
+                <li><strong class="text-highlight">Transcoding:</strong> FFmpeg H.264/AAC MP4 &amp; two-pass palettegen GIF</li>
+                <li><strong class="text-highlight">Uploads:</strong> Chunked binary uploads (<code class="text-highlight">/api/export/chunk</code>)</li>
+                <li><strong class="text-highlight">Security:</strong> Cloudflare Turnstile bot verification</li>
+                <li><strong class="text-highlight">Lifecycle:</strong> Isolated workspaces purged automatically by janitor</li>
+                <li><strong class="text-highlight">Hosting:</strong> Free-tier single-worker deployment with bounded limits</li>
+              </ul>
+              <div class="mt-5 pt-3 border-t border-hairline">
+                <a
+                  href="https://github.com/Sujoy-004/ASCII/blob/main/docs/API.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-xs font-medium text-white hover:underline"
+                >
+                  API Documentation →
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 16 EFFECT MODES SECTION -->
+      <section id="effects" class="border-b border-hairline px-4 py-16 sm:px-8">
+        <div class="mx-auto max-w-5xl">
+          <div class="mb-10">
+            <div class="text-[11px] uppercase tracking-wider text-dim">Shader Capabilities</div>
+            <h2 class="text-xl font-semibold text-white sm:text-2xl">16 Real-Time Retro Visual Shaders</h2>
+            <p class="mt-2 max-w-2xl text-xs text-default">
+              Every shader runs as a native GPU pipeline in Three.js TSL. Switch between modes instantly with live parameter sliders and Rec. 601 pre-tone curve adjustments.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+            <!-- 01 ASCII -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 01</span>
+                <span class="font-mono text-highlight">ascii</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">ASCII Glyph Atlas</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Monospace luminance mapping with standard, dense, simple, and blocks ramps or freeform custom characters. Configurable cell size, spacing, and aspect ratio.
+              </p>
+            </div>
+
+            <!-- 02 DITHER -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 02</span>
+                <span class="font-mono text-highlight">dither</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Ordered Dithering</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Floyd-Steinberg and Bayer 4×4 / 8×8 matrix dispersion. Adjust quantization step levels and error distribution spread.
+              </p>
+            </div>
+
+            <!-- 03 HALFTONE -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 03</span>
+                <span class="font-mono text-highlight">halftone</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Halftone Dot Screen</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Rotated CMYK / monochrome dot matrix printing raster with adjustable screen angle, dot frequency, and maximum radius.
+              </p>
+            </div>
+
+            <!-- 04 VHS -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 04</span>
+                <span class="font-mono text-highlight">vhs</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">VHS / CRT Monitor</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Analog cathode-ray tube emulation featuring horizontal scanlines, RGB chromatic aberration, tape noise, and barrel curvature.
+              </p>
+            </div>
+
+            <!-- 05 MATRIX -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 05</span>
+                <span class="font-mono text-highlight">matrix</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Matrix Digital Rain</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Phosphor green digital rain streams cascading down columns. Tunable waterfall stream speed and glyph column density.
+              </p>
+            </div>
+
+            <!-- 06 DOTS -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 06</span>
+                <span class="font-mono text-highlight">dots</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Circular Dot Grid</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Subsampled circular LED/dot raster with luminance-scaled radii and dark inter-cell gutters.
+              </p>
+            </div>
+
+            <!-- 07 CONTOUR -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 07</span>
+                <span class="font-mono text-highlight">contour</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Topological Contour</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Iso-luminance elevation lines creating vector-like cartographic contour maps across high-contrast gradients.
+              </p>
+            </div>
+
+            <!-- 08 PIXEL SORT -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 08</span>
+                <span class="font-mono text-highlight">pixelSort</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Directional Pixel Sort</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Simulated glitched pixel displacement along directional vectors based on brightness threshold and span length.
+              </p>
+            </div>
+
+            <!-- 09 BLOCKIFY -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 09</span>
+                <span class="font-mono text-highlight">blockify</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Mosaic Blockify</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                8-bit mosaic pixelation quantization with configurable block dimensions and luminance averaging.
+              </p>
+            </div>
+
+            <!-- 10 THRESHOLD -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 10</span>
+                <span class="font-mono text-highlight">threshold</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">High-Contrast Threshold</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Binary 1-bit black/white cutoffs for stark graphic novel silhouettes and stencil separations.
+              </p>
+            </div>
+
+            <!-- 11 EDGE DETECT -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 11</span>
+                <span class="font-mono text-highlight">edgeDetect</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Sobel Edge Detection</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Spatial gradient convolution matrix revealing outlines, wireframe contours, and structural borders.
+              </p>
+            </div>
+
+            <!-- 12 CROSSHATCH -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 12</span>
+                <span class="font-mono text-highlight">crosshatch</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Pen Crosshatching</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Layered diagonal stroke patterns emulating vintage print engravings and hand-drawn pen sketches.
+              </p>
+            </div>
+
+            <!-- 13 WAVE LINES -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 13</span>
+                <span class="font-mono text-highlight">waveLines</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Oscillating Wave Lines</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Horizontal raster scans modulated by harmonic sinusoidal distortion and vertical displacement.
+              </p>
+            </div>
+
+            <!-- 14 NOISE -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 14</span>
+                <span class="font-mono text-highlight">noise</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Film Grain &amp; Static</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Procedural pseudo-random analog film grain and static noise injection with variable intensity.
+              </p>
+            </div>
+
+            <!-- 15 VORONOI -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 15</span>
+                <span class="font-mono text-highlight">voronoi</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Voronoi Stained Glass</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Geometric cellular tiling and stained glass crystallizations mapped over input colors.
+              </p>
+            </div>
+
+            <!-- 16 TONE -->
+            <div class="border border-hairline bg-raised p-4">
+              <div class="flex items-center justify-between text-[10px] text-dim">
+                <span>MODE 16</span>
+                <span class="font-mono text-highlight">tone</span>
+              </div>
+              <h3 class="mt-2 font-semibold text-white">Rec. 601 Tone Grading</h3>
+              <p class="mt-1 text-[11px] text-dim">
+                Pure Rec. 601 pre-tone stage without geometric shaders: brightness, contrast, saturation, hue, gamma, and inversion.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SPECIFICATIONS & PRIVACY ARCHITECTURE -->
+      <section id="architecture" class="border-b border-hairline px-4 py-16 sm:px-8">
+        <div class="mx-auto max-w-5xl">
+          <div class="mb-10">
+            <div class="text-[11px] uppercase tracking-wider text-dim">Engineering Details</div>
+            <h2 class="text-xl font-semibold text-white sm:text-2xl">Technical Specifications &amp; Prerequisites</h2>
+            <p class="mt-2 max-w-2xl text-xs text-default">
+              Clear facts regarding hardware capabilities, platform limitations, privacy boundaries, and supported formats.
+            </p>
+          </div>
+
+          <!-- Privacy Comparison Table -->
+          <div class="border border-hairline bg-raised p-5">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-white">Privacy &amp; Data Boundary Policy</h3>
+            <div class="mt-4 overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-hairline text-dim text-[11px]">
+                    <th class="py-2 pr-4 font-medium">Surface</th>
+                    <th class="py-2 pr-4 font-medium">Network Transmission</th>
+                    <th class="py-2 pr-4 font-medium">Processing Location</th>
+                    <th class="py-2 font-medium">Storage / Retention</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-hairline text-[12px]">
+                  <tr>
+                    <td class="py-2.5 pr-4 font-medium text-white">Browser Studio (/studio/)</td>
+                    <td class="py-2.5 pr-4 text-emerald-400 font-medium">0 bytes transmitted</td>
+                    <td class="py-2.5 pr-4 text-default">Local GPU / WebGPU / Canvas</td>
+                    <td class="py-2.5 text-dim">Ephemeral memory only; cleared on tab close</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2.5 pr-4 font-medium text-white">Terminal Player (CLI)</td>
+                    <td class="py-2.5 pr-4 text-emerald-400 font-medium">0 bytes transmitted</td>
+                    <td class="py-2.5 pr-4 text-default">Local CPU + local FFmpeg process</td>
+                    <td class="py-2.5 text-dim">Reads local disk file; zero telemetry</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2.5 pr-4 font-medium text-white">Server Export API</td>
+                    <td class="py-2.5 pr-4 text-amber-400">Encrypted TLS chunks</td>
+                    <td class="py-2.5 pr-4 text-default">FastAPI worker running FFmpeg</td>
+                    <td class="py-2.5 text-dim">Temporary disk file purged by janitor worker</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Hardware & Formats Grid -->
+          <div class="mt-6 grid gap-6 md:grid-cols-2">
+            <!-- Hardware / Browser Prerequisites -->
+            <div class="border border-hairline bg-raised p-5 text-xs">
+              <h3 class="font-semibold text-white uppercase text-[11px] tracking-wider">Browser &amp; Hardware Prerequisites</h3>
+              <ul class="mt-3 space-y-2 text-dim">
+                <li>
+                  <strong class="text-highlight">WebGPU:</strong> Supported on Chromium 113+, Safari 18+, and modern Firefox with WebGPU enabled. Uses dedicated hardware adapters where present.
+                </li>
+                <li>
+                  <strong class="text-highlight">WebGL2 Fallback:</strong> When WebGPU is unsupported or adapter creation fails, Three.js automatically switches to <code class="text-dim">forceWebGL: true</code>.
+                </li>
+                <li>
+                  <strong class="text-highlight">Webcam Feeds:</strong> Requires explicit user camera permission via the browser <code class="text-dim">navigator.mediaDevices.getUserMedia</code> API over HTTPS.
+                </li>
+                <li>
+                  <strong class="text-highlight">WebM Recording:</strong> Depends on client <code class="text-dim">MediaRecorder</code> API support with VP8/VP9 or compatible codecs.
+                </li>
+              </ul>
+            </div>
+
+            <!-- Supported Input / Output Formats -->
+            <div class="border border-hairline bg-raised p-5 text-xs">
+              <h3 class="font-semibold text-white uppercase text-[11px] tracking-wider">Supported Input &amp; Export Formats</h3>
+              <ul class="mt-3 space-y-2 text-dim">
+                <li>
+                  <strong class="text-highlight">Inputs:</strong> PNG, JPEG, WebP, GIF, MP4, WebM, live camera stream.
+                </li>
+                <li>
+                  <strong class="text-highlight">Client Image Export:</strong> PNG or JPEG snapshot directly from GPU canvas via <code class="text-dim">canvas.toBlob()</code>.
+                </li>
+                <li>
+                  <strong class="text-highlight">Client GIF Export:</strong> Animated GIF rendered client-side with <code class="text-dim">gifenc</code>. Enforces a 1 to 5 second duration limit to safeguard browser memory.
+                </li>
+                <li>
+                  <strong class="text-highlight">Vector &amp; Text Export:</strong> Scalable vector SVG with colored <code class="text-dim">&lt;tspan&gt;</code> elements and raw Rec. 601 plain text (.txt) grids.
+                </li>
+                <li>
+                  <strong class="text-highlight">Server Video Export:</strong> Full-length MP4 (H.264 video, AAC audio) with source audio track preservation and high-resolution GIF palettes.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DEVELOPER QUICK START & CLI GUIDE -->
+      <section id="quickstart" class="border-b border-hairline px-4 py-16 sm:px-8">
+        <div class="mx-auto max-w-5xl">
+          <div class="mb-10">
+            <div class="text-[11px] uppercase tracking-wider text-dim">Developer Workflows</div>
+            <h2 class="text-xl font-semibold text-white sm:text-2xl">Quick Start &amp; Command Reference</h2>
+            <p class="mt-2 max-w-2xl text-xs text-default">
+              Get up and running with the terminal video player, local browser studio, or server export backend in minutes.
+            </p>
+          </div>
+
+          <div class="space-y-6">
+            <!-- 1. Terminal Video Player -->
+            <div class="border border-hairline bg-raised p-5">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-hairline pb-3">
+                <div>
+                  <span class="text-[10px] text-dim uppercase">Surface 02 // CLI</span>
+                  <h3 class="text-sm font-semibold text-white">1. Run the Python ANSI Terminal Video Player</h3>
+                </div>
+                <button
+                  type="button"
+                  data-copy="git clone https://github.com/Sujoy-004/ASCII.git && cd ASCII && pip install -e . && rgb-ascii path/to/video.mp4 --half-block"
+                  class="self-start sm:self-auto border border-hairline bg-[#111] px-2.5 py-1 text-[11px] text-dim hover:text-white transition-colors"
+                >
+                  Copy Command
+                </button>
+              </div>
+              <p class="mt-3 text-xs text-dim">
+                Requirements: Python 3.10+ and system FFmpeg/FFplay binaries. Plays any video file directly in modern 24-bit ANSI True Color terminals with master-clock synchronized audio.
+              </p>
+              <pre class="mt-3 overflow-x-auto border border-hairline bg-black p-3 text-xs text-highlight font-mono"><code># Clone repository and install in editable mode
+git clone https://github.com/Sujoy-004/ASCII.git
+cd ASCII
+pip install -e .
+
+# Play video with 2x vertical resolution in ANSI True Color
+rgb-ascii video.mp4 --half-block
+
+# Alternative CLI options
+rgb-ascii video.mp4 --preset dense --no-audio
+rgb-ascii video.mp4 --no-color --smoothing 0.2</code></pre>
+            </div>
+
+            <!-- 2. Local Web Studio -->
+            <div class="border border-hairline bg-raised p-5">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-hairline pb-3">
+                <div>
+                  <span class="text-[10px] text-dim uppercase">Surface 01 // Frontend</span>
+                  <h3 class="text-sm font-semibold text-white">2. Run the Interactive Web Studio Locally</h3>
+                </div>
+                <button
+                  type="button"
+                  data-copy="cd web && npm install && npm run dev"
+                  class="self-start sm:self-auto border border-hairline bg-[#111] px-2.5 py-1 text-[11px] text-dim hover:text-white transition-colors"
+                >
+                  Copy Command
+                </button>
+              </div>
+              <p class="mt-3 text-xs text-dim">
+                Requirements: Node.js 18+. Starts the Vite development server with Hot Module Reloading. Open <code class="text-highlight">http://localhost:5173/studio/</code>.
+              </p>
+              <pre class="mt-3 overflow-x-auto border border-hairline bg-black p-3 text-xs text-highlight font-mono"><code>cd web
+npm install
+npm run dev
+
+# Open http://localhost:5173/studio/</code></pre>
+            </div>
+
+            <!-- 3. Export API Service -->
+            <div class="border border-hairline bg-raised p-5">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-hairline pb-3">
+                <div>
+                  <span class="text-[10px] text-dim uppercase">Surface 03 // Backend</span>
+                  <h3 class="text-sm font-semibold text-white">3. Run the FastAPI / FFmpeg Export Service</h3>
+                </div>
+                <button
+                  type="button"
+                  data-copy="pip install -r requirements.txt && uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload"
+                  class="self-start sm:self-auto border border-hairline bg-[#111] px-2.5 py-1 text-[11px] text-dim hover:text-white transition-colors"
+                >
+                  Copy Command
+                </button>
+              </div>
+              <p class="mt-3 text-xs text-dim">
+                Starts the FastAPI microservice on port 8000 with CORS and health endpoints.
+              </p>
+              <pre class="mt-3 overflow-x-auto border border-hairline bg-black p-3 text-xs text-highlight font-mono"><code>pip install -r requirements.txt
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Check health endpoint: http://localhost:8000/health</code></pre>
+            </div>
+          </div>
+
+          <!-- Documentation Links -->
+          <div class="mt-8 border-t border-hairline pt-6">
+            <div class="text-[11px] uppercase tracking-wider text-dim mb-3">Architectural Documentation</div>
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 text-xs">
+              <a
+                href="https://github.com/Sujoy-004/ASCII/blob/main/docs/ARCHITECTURE.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="border border-hairline bg-raised p-2.5 text-highlight hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                System Architecture →
+              </a>
+              <a
+                href="https://github.com/Sujoy-004/ASCII/blob/main/docs/CONFIGURATION.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="border border-hairline bg-raised p-2.5 text-highlight hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                Configuration Reference →
+              </a>
+              <a
+                href="https://github.com/Sujoy-004/ASCII/blob/main/docs/API.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="border border-hairline bg-raised p-2.5 text-highlight hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                API Specification →
+              </a>
+              <a
+                href="https://github.com/Sujoy-004/ASCII/blob/main/docs/DEPLOYMENT.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="border border-hairline bg-raised p-2.5 text-highlight hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                Deployment Guide →
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FREQUENTLY ASKED QUESTIONS -->
+      <section id="faq" class="border-b border-hairline px-4 py-16 sm:px-8">
+        <div class="mx-auto max-w-5xl">
+          <div class="mb-10">
+            <div class="text-[11px] uppercase tracking-wider text-dim">Reference &amp; Clarifications</div>
+            <h2 class="text-xl font-semibold text-white sm:text-2xl">Frequently Asked Questions</h2>
+          </div>
+
+          <div class="space-y-4">
+            <!-- FAQ 1 -->
+            <div class="border border-hairline bg-raised p-5">
+              <h3 class="text-sm font-semibold text-white">Does the interactive web studio upload my images or webcam feed?</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed">
+                No. The interactive studio runs 100% inside your local browser via WebGPU and WebGL2. When you drag and drop photos or videos, or activate your webcam, media buffers are uploaded exclusively to local GPU textures. Zero bytes leave your machine during interactive editing or client exports.
+              </p>
+            </div>
+
+            <!-- FAQ 2 -->
+            <div class="border border-hairline bg-raised p-5">
+              <h3 class="text-sm font-semibold text-white">What happens if my browser or device does not support WebGPU?</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed">
+                The studio automatically falls back to Three.js’s WebGL2 backend (<code class="text-dim">forceWebGL: true</code>). While WebGPU offers higher performance and modern compute capabilities on supported browsers (Chromium 113+, Safari 18+), the WebGL2 fallback ensures shader compatibility on standard modern devices.
+              </p>
+            </div>
+
+            <!-- FAQ 3 -->
+            <div class="border border-hairline bg-raised p-5">
+              <h3 class="text-sm font-semibold text-white">Why is the client-side GIF export limited to 5 seconds?</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed">
+                Client-side GIF rendering generates, quantizes, and palettizes uncompressed frames entirely within the browser tab’s memory using JavaScript (<code class="text-dim">gifenc</code>). Limiting recordings to 1–5 seconds guarantees smooth encoding without browser tab crashes or mobile memory out-of-bounds errors. For full-duration video and long GIF rendering, use the server-side export microservice.
+              </p>
+            </div>
+
+            <!-- FAQ 4 -->
+            <div class="border border-hairline bg-raised p-5">
+              <h3 class="text-sm font-semibold text-white">How does the Python terminal video player keep audio and video synchronized?</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed">
+                The terminal CLI establishes a master audio clock timebase. An FFplay subprocess streams the audio track while an FFmpeg subprocess pipes decoded raw video frames to stdout. The Python runner continuously measures elapsed audio time and applies adaptive frame load shedding—dropping frames if the terminal emulator lags or holding frames if rendering leads—preventing desynchronization.
+              </p>
+            </div>
+
+            <!-- FAQ 5 -->
+            <div class="border border-hairline bg-raised p-5">
+              <h3 class="text-sm font-semibold text-white">When should I use the server-side export service versus client export?</h3>
+              <p class="mt-2 text-xs text-default leading-relaxed">
+                Use client exports (PNG, JPEG, SVG, .txt, 5s GIF, WebM) for instant, private downloads without server queues. Use the server export microservice when you need full-length high-resolution MP4 rendering with intact source audio tracks, or multi-pass palette-optimized animated GIFs.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="px-4 py-12 sm:px-8 border-t border-hairline bg-black text-xs text-dim" role="contentinfo">
+      <div class="mx-auto max-w-5xl flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div class="flex items-center gap-2 text-highlight font-medium">
+            <span class="inline-block h-2 w-2 bg-neutral-600"></span>
+            <span>RGB ASCII &amp; Retro FX Studio</span>
+          </div>
+          <p class="mt-1 text-[11px] text-dim">
+            Open-source WebGPU shaders, ANSI terminal video player, and export microservice.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-4 text-xs">
+          <a href="/studio/" class="text-highlight hover:text-white transition-colors">
+            Open Studio
+          </a>
+          <a
+            href="https://github.com/Sujoy-004/ASCII"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-white transition-colors"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://github.com/Sujoy-004/ASCII/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-white transition-colors"
+          >
+            MIT License
+          </a>
+          <a href="/sitemap.xml" class="hover:text-white transition-colors">
+            Sitemap
+          </a>
+          <a href="/robots.txt" class="hover:text-white transition-colors">
+            Robots
+          </a>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Progressive Enhancement Script -->
+    <script type="module" src="/src/landing.ts"></script>
   </body>
 </html>

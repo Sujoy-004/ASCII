@@ -7,6 +7,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
+      input: {
+        main: 'index.html',
+        studio: 'studio/index.html',
+        notFound: '404.html',
+      },
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/three')) {

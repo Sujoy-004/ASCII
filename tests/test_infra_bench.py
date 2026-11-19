@@ -65,7 +65,8 @@ def test_cloudflare_pages_configuration() -> None:
     redirects_path = Path("web/public/_redirects")
     assert redirects_path.exists(), "_redirects must exist in web/public/"
     redirects_text = redirects_path.read_text(encoding="utf-8").strip()
-    assert redirects_text == "/*    /index.html   200", "SPA redirect rule must match Cloudflare Pages format"
+    assert "/studio/*   /studio/index.html  200" in redirects_text, "Studio SPA rewrite rule must match Cloudflare Pages format"
+    assert "/studio" in redirects_text
 
 
 def test_database_schema_ddl() -> None:

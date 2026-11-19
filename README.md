@@ -4,7 +4,7 @@
 Real-time retro visual effects and ASCII studio for images, videos, and live webcam streams across browser, headless API, and terminal interfaces.
 
 [![CI](https://github.com/Sujoy-004/ASCII/actions/workflows/ci.yml/badge.svg)](https://github.com/Sujoy-004/ASCII/actions/workflows/ci.yml)
-[![Live Studio](https://img.shields.io/badge/Live%20Studio-rgb--ascii.pages.dev-00f0ff?style=for-the-badge&logo=cloudflarepages&logoColor=black)](https://rgb-ascii.pages.dev)
+[![Live Studio](https://img.shields.io/badge/Live%20Studio-rgb--ascii.pages.dev%2Fstudio-00f0ff?style=for-the-badge&logo=cloudflarepages&logoColor=black)](https://rgb-ascii.pages.dev/studio/)
 [![Python Version](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![WebGPU](https://img.shields.io/badge/WebGPU-Three.js%20TSL-990000?style=for-the-badge&logo=webgpu&logoColor=white)](https://threejs.org/)
@@ -19,7 +19,8 @@ Real-time retro visual effects and ASCII studio for images, videos, and live web
 - **Terminal Player**: Python CLI delivering 24-bit ANSI True Color playback directly in modern terminals, synchronized with FFplay audio streaming and adaptive frame rate load shedding.
 - **Export Backend**: Production FastAPI microservice running bounded FFmpeg transcoding pipelines to render and download full-resolution MP4 clips and animated GIFs.
 
-🌐 **Try the Live Studio:** [https://rgb-ascii.pages.dev](https://rgb-ascii.pages.dev)
+🌐 **Product Overview:** [https://rgb-ascii.pages.dev](https://rgb-ascii.pages.dev)  
+🚀 **Interactive Studio:** [https://rgb-ascii.pages.dev/studio/](https://rgb-ascii.pages.dev/studio/)
 
 ### Quick Start (One Command)
 
@@ -90,7 +91,7 @@ cd web
 npm run dev
 ```
 
-Open `http://localhost:5173` in any modern browser supporting WebGPU or WebGL2.
+Open `http://localhost:5173/studio/` in any modern browser supporting WebGPU or WebGL2 (or visit `http://localhost:5173` for the landing page).
 
 ### 3. Start the Export API Service
 
