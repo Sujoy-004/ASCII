@@ -42,7 +42,7 @@ export default function App() {
           title="Return to Product Overview"
           className="truncate text-dim hover:text-highlight transition-colors"
         >
-          rgb-ascii studio v0.1.0 [webgpu]
+          rgb-ascii studio v1.0.0 [webgpu]
         </a>
         <span className="hidden sm:inline">
           local session <span className="text-highlight">● offline-ready</span>

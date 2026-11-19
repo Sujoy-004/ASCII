@@ -51,7 +51,7 @@ The API uses a layered token security model:
 ```json
 {
   "status": "ok",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "timestamp": 1731940000.123
 }
 ```

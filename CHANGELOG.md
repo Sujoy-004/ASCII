@@ -5,7 +5,7 @@ All notable changes to **RGB ASCII & Retro FX Studio** will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-11-18
+## [1.0.0] - 2026-11-18
 
 ### Added
 - **Web Studio (WebGPU / TSL)**: Real-time interactive browser studio with 16 hardware retro shaders (ASCII glyph atlas, Floyd-Steinberg and Bayer dithering, halftone screen printing, matrix rain, VHS/CRT scanlines, directional pixel sorting, blockify, and Rec. 601 tone grading).

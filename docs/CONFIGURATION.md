@@ -55,7 +55,7 @@ Declarative configuration for Python packaging, linters, and test runners:
 ```toml
 [project]
 name = "rgb-ascii"
-version = "0.1.0"
+version = "1.0.0"
 requires-python = ">=3.10"
 dependencies = []
 

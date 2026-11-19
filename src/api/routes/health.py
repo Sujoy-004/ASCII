@@ -16,6 +16,6 @@ async def health_check(request: Request) -> dict[str, object]:
     """Return health status and current timestamp for container pre-warming."""
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": "1.0.0",
         "timestamp": time.time(),
     }

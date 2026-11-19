@@ -112,7 +112,7 @@ Configure the following environment variables in the deployment dashboards:
 
 ## Monitoring & Health Checks
 
-- **Health Ping**: The `/health` endpoint responds with `{ "status": "ok", "version": "0.1.0" }`. Ping periodically to pre-warm the free-tier Render container and prevent cold-start latency:
+- **Health Ping**: The `/health` endpoint responds with `{ "status": "ok", "version": "1.0.0" }`. Ping periodically to pre-warm the free-tier Render container and prevent cold-start latency:
   ```bash
   curl -I https://rgb-ascii-api.onrender.com/health
   ```

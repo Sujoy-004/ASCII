@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RGB ASCII & Retro FX Studio API",
-    version="0.1.0",
+    version="1.0.0",
     description="Production backend API for high-resolution video and animated GIF export.",
     lifespan=lifespan,
 )
