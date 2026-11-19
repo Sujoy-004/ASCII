@@ -4,5 +4,5 @@ fastapi>=0.135.2
 uvicorn>=0.42.0
 slowapi>=0.1.9
 httpx>=0.28.1
-python-multipart>=0.0.22
+python-multipart>=0.0.32
 psutil>=7.2.2
